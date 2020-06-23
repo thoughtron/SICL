@@ -12,12 +12,11 @@
       (setf (lexical-value continuation-output lexical-environment)
             transfer-tag)
       (setf (lexical-value dynamic-environment-output lexical-environment)
-            (cons (make-instance 'block/tagbody-entry
-                    :abandon-tag abandon-tag)
+            (cons (make-instance 'sicl-run-time:block/tagbody-entry
+                    :frame-pointer abandon-tag)
                   (lexical-value (cleavir-ir:dynamic-environment-location instruction)
                                  lexical-environment)))
       (catch abandon-tag
-        (loop for index = 0
+        (loop for successor = (first successors)
                 then  (catch transfer-tag
-                        (interpret-instructions client successor lexical-environment))
-              for successor = (nth index successors))))))
+                        (interpret-instructions client successor lexical-environment)))))))

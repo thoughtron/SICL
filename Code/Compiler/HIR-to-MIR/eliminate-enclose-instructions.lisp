@@ -3,8 +3,6 @@
 (defclass entry-point-input (cleavir-ir:immediate-input)
   ((%enter-instruction :initarg :enter-instruction :reader enter-instruction)))
 
-;;; Replace each ENTER instruction that is an immediate child of
-;;; ENTER-INSTRUCTION with an AREF-instruction.
 (defun eliminate-enclose-instructions (client enter-instruction)
   (declare (ignore client))
   (let ((static-environment-location
@@ -15,9 +13,9 @@
          (let ((enclose-function-lexical-location
                  (make-instance 'cleavir-ir:lexical-location
                    :name (gensym "enclose-function")))
-               (static-input-1
+               (static-input-enclose-function-index
                  (make-instance 'cleavir-ir:constant-input
-                   :value 1))
+                   :value sicl-compiler:+enclose-function-index+))
                (entry-point-input
                  (make-instance 'entry-point-input
                    :value 0
@@ -27,7 +25,8 @@
               :boxed-p t
               :simple-p t
               :element-type t
-              :inputs (list static-environment-location static-input-1)
+              :inputs (list static-environment-location
+                       static-input-enclose-function-index)
               :output enclose-function-lexical-location)
             instruction)
            (cleavir-ir:insert-instruction-after

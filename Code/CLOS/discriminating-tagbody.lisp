@@ -50,7 +50,10 @@
 ;;; grouping together transfers with adjacent labels that have the
 ;;; same target.
 (defun make-transfer-groups (transfers)
-  (loop with trs = (sort (copy-list transfers) #'< :key #'transfer-label)
+  (loop with trcs = (loop for trc in transfers
+                          collect (make-transfer (unique-number (transfer-label trc))
+                                                 (transfer-target trc)))
+        with trs = (sort trcs #'< :key #'transfer-label)
         with first = (car trs)
         with rest = (cdr trs)
         with result = (list (make-transfer-group
@@ -91,19 +94,19 @@
           (if open-inf-p
               (if open-sup-p
                   (if (= end (1+ start))
-                      `(if (= ,var ,start)
+                      `(if (cleavir-primop:fixnum-equal ,var ,start)
                            (go ,target)
                            (go ,default))
-                      `(if (< ,var ,start)
+                      `(if (cleavir-primop:fixnum-less ,var ,start)
                            (go ,default)
-                           (if (< ,var ,end)
+                           (if (cleavir-primop:fixnum-less ,var ,end)
                                (go ,target)
                                (go ,default))))
-                  `(if (< ,var ,start)
+                  `(if (cleavir-primop:fixnum-less ,var ,start)
                        (go ,default)
                        (go ,target)))
               (if open-sup-p
-                  `(if (< ,var ,end)
+                  `(if (cleavir-primop:fixnum-less ,var ,end)
                        (go ,target)
                        (go ,default))
                   `(go ,target))))
@@ -116,22 +119,65 @@
                            (interval-start
                             (transfer-group-interval (car right))))))
           ;; FIXME: these cars and cdrs should be abstracted.
-          `(if (< ,var ,(interval-start (transfer-group-interval (car right))))
+          `(if (cleavir-primop:fixnum-less ,var ,(interval-start (transfer-group-interval (car right))))
                ,(compute-test-tree var default left open-inf-p open-p)
                ,(compute-test-tree var default right nil open-sup-p))))))
 
-;;; VAR is the name of a variable containing the unique number of a
-;;; class.  TRANSFERS is a list of transfers (recall that a transfer
-;;; is a CONS cell of a label (i.e. the unique name of a class) and
-;;; the name of a TAGBODY tag).  We generate a tree of nested IF
-;;; forms, testing VAR against the labels and generating a GO to the
-;;; corresponding TAGBODY tag.  DEFAULT is a symbol indicating a
-;;; default TAGBODY tag to transfer control to if the value of VAR is
-;;; not any of the labels in TRANSFERS.
-(defun test-tree-from-transfers (var default transfers)
-  (let ((transfer-groups (make-transfer-groups transfers)))
-    ;; T and T might not be optimal for the last two arguments.
-    (compute-test-tree var default transfer-groups t t)))
+;;; ARGUMENT-VAR is the name of a variable containing an argument.
+;;; TRANSFERS is a list of transfers (recall that a transfer is a CONS
+;;; cell of a label (i.e. a class metaobject) and the name of a
+;;; TAGBODY tag).  We generate a tree of nested IF forms, testing VAR
+;;; against the labels and generating a GO to the corresponding
+;;; TAGBODY tag.  DEFAULT is a symbol indicating a default TAGBODY tag
+;;; to transfer control to if the value of VAR is not any of the
+;;; labels in TRANSFERS.
+
+;;; Generate a test tree when it is known that the argument value is a
+;;; standard object.  Then we can take the stamp of it and
+;;; discriminate based on intervals of stamps.
+(defun test-tree-from-standard-object-transfers
+    (argument-var default transfers)
+  (if (null transfers)
+      `(go ,default)
+      (let ((transfer-groups (make-transfer-groups transfers)))
+        ;; T and T might not be optimal for the last two arguments.
+        (let ((stamp-var (gensym)))
+          `(let ((,stamp-var (cleavir-primop:nook-read ,argument-var 0)))
+             ,(compute-test-tree stamp-var default transfer-groups t t))))))
+
+(defparameter *class-name-to-predicate-name*
+  `((fixnum . cleavir-primop:fixnump)
+    (cons . cleavir-primop:consp)
+    (character . cleavir-primop:characterp)
+    (single-float . cleavir-primop:single-float-p)))
+
+;;; Generate a test tree when it is known that the argument value is a
+;;; non-standard object.  Then we use primop predicates to test what
+;;; class it is.
+(defun test-tree-from-non-standard-object-transfers
+    (argument-var default transfers)
+  (loop with tree = `(go ,default)
+        for (class . tag) in transfers
+        for class-name = (class-name class)
+        for predicate-name = (cdr (assoc class-name *class-name-to-predicate-name*))
+        do (setf tree `(if (,predicate-name ,argument-var)
+                           (go ,tag)
+                           ,tree))
+        finally (return tree)))
+
+(defun test-tree-from-transfers (argument-var default transfers)
+  (let ((standard-object-transfers '())
+        (non-standard-object-transfers '()))
+    (loop for transfer in transfers
+          do (if (member (class-name (car transfer))
+                         '(fixnum cons character single-float))
+                 (push transfer non-standard-object-transfers)
+                 (push transfer standard-object-transfers)))
+    `(if (cleavir-primop:standard-object-p ,argument-var)
+         ,(test-tree-from-standard-object-transfers
+           argument-var default standard-object-transfers)
+         ,(test-tree-from-non-standard-object-transfers
+           argument-var default non-standard-object-transfers))))
 
 (defun test-trees-from-internal-layer-info (var default layer-info)
   (loop for state-info in layer-info
@@ -145,15 +191,14 @@
 ;;; Create a TAGBODY form that implements the initial part of a
 ;;; discriminating function.  TRANSITION-INFO is the transition
 ;;; information extracted from a discriminating automaton.
-;;; CLASS-NUMBER-VARS is a list of variables containing the class
-;;; numbers of the specialized required arguments to the generic
-;;; function.
-(defun compute-discriminating-tagbody (transition-info class-number-vars)
+;;; ARGUMENT-VARS is a list of variables containing the specialized
+;;; required arguments to the generic function.
+(defun compute-discriminating-tagbody (transition-info argument-vars)
   (let ((default (gensym)))
     `(tagbody
         ,@(append
            (loop for layer-info in (butlast transition-info)
-                 for var in class-number-vars
+                 for var in argument-vars
                  append (test-trees-from-internal-layer-info
                          var default layer-info))
            (actions-from-final-layer-info (car (last transition-info))))

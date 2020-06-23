@@ -3,12 +3,19 @@
 (defpackage #:cleavir-primop
   (:use)
   (:export
+   #:fixnump
+   #:consp
+   #:characterp
+   #:single-float-p
+   #:standard-object-p
    #:eq
    #:typeq
    #:car #:cdr #:rplaca #:rplacd
    #:fixnum-arithmetic
    #:fixnum-add
    #:fixnum-sub
+   #:fixnum-multiply
+   #:fixnum-divide
    #:fixnum-less
    #:fixnum-not-greater
    #:fixnum-greater

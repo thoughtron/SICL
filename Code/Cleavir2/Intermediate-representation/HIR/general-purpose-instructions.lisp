@@ -26,7 +26,7 @@
 (defun make-top-level-enter-instruction (lambda-list forms dynenv)
   (let ((enter (make-enter-instruction lambda-list dynenv)))
     (change-class enter 'top-level-enter-instruction
-		  :forms forms)))
+                  :forms forms)))
 
 (defmethod clone-initargs append ((instruction top-level-enter-instruction))
   (list :forms (forms instruction)))
@@ -143,7 +143,7 @@
 ;;; Instruction CATCH-INSTRUCTION.
 ;;;
 ;;; This instruction is used to mark a control point and stack frame
-;;; as an exit point. It has one input, two outputs, and one or more
+;;; as an exit point. It has no inputs, two outputs, and one or more
 ;;; successors.
 ;;;
 ;;; When reached normally, control proceeds unconditionally to the
@@ -184,17 +184,21 @@
 ;;; The process of unwinding may involve dynamically determined side
 ;;; effects due to UNWIND-PROTECT.
 ;;;
-;;; The instruction has two inputs: the continuation output by a
-;;; CATCH-INSTRUCTION (see its comment for details) and the dynamic
-;;; environment.
+;;; The instruction has a single input: the continuation output by a
+;;; CATCH-INSTRUCTION (see its comment for details).
+;;;
+;;; This instruction has no "normal" successors.  The instruction to
+;;; which control is to be transferred is instead determined by the
+;;; combination of the DESTINATION and the INDEX.
 
 (defclass unwind-instruction
     (instruction no-successors-mixin side-effect-mixin)
   (;; The destination of the UNWIND-INSTRUCTION is the
-   ;; instruction to which it will eventually transfer control.
-   ;; This instruction must be the successor of a CATCH-INSTRUCTION.
-   ;; It is not a normal successor because the exit is non-local.
+   ;; CATCH-INSTRUCTION that is the result of compiling the
+   ;; corresponding BLOCK-AST.
    (%destination :initarg :destination :accessor destination)
+   ;; The index of the UNWIND-INSTRUCTION is the index into the list
+   ;; of successors of the CATCH-INSTRUCTION that is the DESTINATION.
    (%index :initarg :index :accessor unwind-index)))
 
 (defmethod clone-initargs append ((instruction unwind-instruction))
@@ -221,6 +225,29 @@
   ())
 
 (defmethod dynamic-environment-output ((instruction bind-instruction))
+  (first (outputs instruction)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Instruction UNWIND-PROTECT-INSTRUCTION.
+;;;
+;;; This instruction is used in order to create an entry on the
+;;; dynamic environment that will perform the cleanup actions
+;;; specified in an UNWIND-PROTECT form whenever the environment is
+;;; unwound.
+;;;
+;;; The instruction has a single input, namely a thunk, typically
+;;; resulting from the execution of an ENCLOSE-INSTRUCTION of the code
+;;; in the cleanup forms of the UNWIND-PROTECT form.
+;;;
+;;; The instruction has a single output, a lexical location indicating
+;;; a new dynamic environment in which the variable is bound.
+
+(defclass unwind-protect-instruction
+    (instruction one-successor-mixin side-effect-mixin)
+  ())
+
+(defmethod dynamic-environment-output ((instruction unwind-protect-instruction))
   (first (outputs instruction)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -265,11 +292,42 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
+;;; Instruction SHORT-FLOAT-P-INSTRUCTION.
+;;;
+;;; This instruction is used to test whether its input is a
+;;; SHORT-FLOAT.  If that is the case, then the first output is
+;;; chosen.  Otherwise, the second output is chosen.
+;;;
+;;; This instruction can be used by clients that represent short
+;;; floats as immediate objects.
+
+(defclass short-float-p-instruction (instruction multiple-successors-mixin)
+  ())
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Instruction SINGLE-FLOAT-P-INSTRUCTION.
+;;;
+;;; This instruction is used to test whether its input is a
+;;; SINGLE-FLOAT.  If that is the case, then the first output is
+;;; chosen.  Otherwise, the second output is chosen.
+;;;
+;;; This instruction can be used by clients that represent single
+;;; floats as immediate objects.
+
+(defclass single-float-p-instruction (instruction multiple-successors-mixin)
+  ())
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Instruction STANDARD-OBJECT-P-INSTRUCTION.
 ;;;
-;;; This instruction is used to test whether its input is an instance
-;;; of STANDARD-OBJECT.  If that is the case, then the first output is
+;;; This instruction is used to test whether its input is a
+;;; STANDARD-OBJECT.  If that is the case, then the first output is
 ;;; chosen.  Otherwise, the second output is chosen.
+;;;
+;;; This instruction can be used by clients that have unique tag bits
+;;; for representing standard objects.
 
 (defclass standard-object-p-instruction (instruction multiple-successors-mixin)
   ())
@@ -277,6 +335,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Instruction SYMBOL-VALUE-INSTRUCTION.
+;;;
+;;; This instruction is used when the value of a special variable is
+;;; required.  It has a single input, a constant input containing the
+;;; symbol naming the variable.  It has a single output, a lexical
+;;; location that will hold the value of the special variable.
 
 (defclass symbol-value-instruction (instruction one-successor-mixin)
   ())
@@ -284,6 +347,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Instruction SET-SYMBOL-VALUE-INSTRUCTION.
+;;;
+;;; This instruction is generated as a result of an assignment to a
+;;; special variable.  It has two inputs, a constant input containing
+;;; the symbol naming the variable, and a lexical location or a
+;;; constant input that will become the value of the special variable.
+;;; This instruction has no outputs.
 
 (defclass set-symbol-value-instruction
     (instruction one-successor-mixin side-effect-mixin)

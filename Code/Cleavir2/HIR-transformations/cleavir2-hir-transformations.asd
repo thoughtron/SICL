@@ -7,4 +7,6 @@
   ((:file "packages")
    (:file "compute-ownership")
    (:file "function-dag")
-   (:file "segregate-lexicals")))
+   (:file "escape")
+   (:file "segregate-lexicals")
+   (:file "replace-aliases")))

@@ -94,6 +94,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
+;;; Converting CLEAVIR-PRIMOP:CONSP.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:consp)) cst environment)
+  (check-simple-primop-syntax cst 1)
+  (cst:db origin (consp-cst object-cst) cst
+    (declare (ignore consp-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:consp-ast
+      :object-ast (convert client object-cst environment))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Converting CLEAVIR-PRIMOP:CAR.
 
 (defmethod convert-special
@@ -144,6 +156,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
+;;; Converting CLEAVIR-PRIMOP:FIXNUMP.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:fixnump)) cst environment)
+  (check-simple-primop-syntax cst 1)
+  (cst:db origin (fixnump-cst object-cst) cst
+    (declare (ignore fixnump-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:fixnump-ast
+      :object-ast (convert client object-cst environment))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Converting CLEAVIR-PRIMOP:FIXNUM-ADD.
 
 (defmethod convert-special
@@ -169,6 +193,19 @@
       :arg1-ast (convert client arg1-cst environment)
       :arg2-ast (convert client arg2-cst environment)
       :variable-ast (convert client variable-cst environment))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Converting CLEAVIR-PRIMOP:FIXNUM-DIVIDE.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:fixnum-divide)) cst environment)
+  (check-simple-primop-syntax cst 2)
+  (cst:db origin (divide-cst dividend-cst divisor-cst) cst
+    (declare (ignore divide-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:fixnum-divide-ast
+      :dividend-ast (convert client dividend-cst environment)
+      :divisor-ast (convert client divisor-cst environment))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -237,6 +274,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
+;;; Converting CLEAVIR-PRIMOP:CHARACTERP.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:characterp)) cst environment)
+  (check-simple-primop-syntax cst 1)
+  (cst:db origin (characterp-cst object-cst) cst
+    (declare (ignore characterp-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:characterp-ast
+      :object-ast (convert client object-cst environment))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
 ;;; Converting CLEAVIR-PRIMOP:LET-UNINITIALIZED.
 ;;;
 ;;; A form using the operator LET-UNINITIALIZED has the following
@@ -266,7 +315,7 @@
                                       :name variable)))
                  (setf new-env
                        (trucler:add-lexical-variable
-                        new-env variable variable-ast))))
+                        client new-env variable variable-ast))))
       (process-progn (convert-sequence client body-cst new-env)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -319,6 +368,18 @@
      :form-asts (loop for remaining = arguments-cst then (cst:rest remaining)
                       until (cst:null remaining)
                       collect (convert client (cst:first remaining) environment)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Converting CLEAVIR-PRIMOP:STANDARD-OBJECT-P.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:standard-object-p)) cst environment)
+  (check-simple-primop-syntax cst 1)
+  (cst:db origin (standard-object-p-cst object-cst) cst
+    (declare (ignore standard-object-p-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:standard-object-p-ast
+      :object-ast (convert client object-cst environment))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -407,6 +468,18 @@
       :element-type (cst:raw type-cst)
       :simple-p (cst:raw simple-p-cst)
       :boxed-p (cst:raw boxed-p-cst))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Converting CLEAVIR-PRIMOP:SINGLE-FLOAT-P.
+
+(defmethod convert-special
+    (client (symbol (eql 'cleavir-primop:single-float-p)) cst environment)
+  (check-simple-primop-syntax cst 1)
+  (cst:db origin (single-float-p-cst object-cst) cst
+    (declare (ignore single-float-p-cst))
+    (cleavir-ast:make-ast 'cleavir-ast:single-float-p-ast
+      :object-ast (convert client object-cst environment))))
 
 ;;; The following macro is used to generate a method on
 ;;; CONVERT-SPECIAL for binary floating-point primops.

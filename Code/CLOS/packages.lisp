@@ -12,6 +12,7 @@
    #:class #:standard-class #:built-in-class #:structure-class
    #:funcallable-standard-class
    #:standard-object #:function #:funcallable-standard-object
+   #:simple-function
    #:generic-function #:standard-generic-function
    #:method #:standard-method
    #:metaobject
@@ -49,6 +50,8 @@
    #:instance-size
    #:variant-signature
    ;; Accessors for generic function metaobjects.
+   #:entry-point
+   #:environment
    #:code-object
    #:generic-function-name
    #:generic-function-argument-precedence-order
@@ -118,7 +121,7 @@
    #:ensure-method
    #:default-superclasses
    #:allocate-general-instance
-   #:general-instance-p
+   #:allocate-instance-common
    #:add-direct-method
    #:remove-direct-method
    ;; SICL-specific macro

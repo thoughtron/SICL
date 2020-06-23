@@ -65,7 +65,7 @@
       `(let* ((rt-env (sicl-genv:global-environment))
               (,generic-function-var
                 (ensure-generic-function ',function-name :environment rt-env)))
-         (ensure-method-on-generic-function
+         (ensure-method
           ,generic-function-var
           :lambda-list ',lambda-list
           :qualifiers ',qualifiers
@@ -76,5 +76,8 @@
             function-name
             `(lambda ,lambda-list
                ,@declarations
-               ,@forms)
+               (block ,(if (consp function-name)
+                           (second function-name)
+                           function-name)
+                 ,@forms))
             ct-env))))))

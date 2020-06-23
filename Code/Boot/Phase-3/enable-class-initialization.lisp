@@ -1,48 +1,36 @@
 (cl:in-package #:sicl-boot-phase-3)
 
 (defun define-add-remove-direct-subclass (e3)
-  ;; REMOVE is called by REMOVE-DIRECT-SUBCLASS in order to remove a
-  ;; class from the list of subclasses of some class.
-  (import-function-from-host 'remove e3)
-  (load-fasl "CLOS/add-remove-direct-subclass-support.fasl" e3)
-  (load-fasl "CLOS/add-remove-direct-subclass-defgenerics.fasl" e3)
-  (load-fasl "CLOS/add-remove-direct-subclass-defmethods.fasl" e3))
+  (load-source "CLOS/add-remove-direct-subclass-support.lisp" e3)
+  (load-source "CLOS/add-remove-direct-subclass-defgenerics.lisp" e3)
+  (load-source "CLOS/add-remove-direct-subclass-defmethods.lisp" e3))
 
 (defun define-add-remove-method (e3)
-  (load-fasl "CLOS/add-remove-method-defgenerics.fasl" e3)
-  ;; MAKE-LIST is called when a method is removed and a new
-  ;; specializer profile must be computed.
-  (import-function-from-host 'make-list e3)
-  ;; FIND-IF is called by ADD-METHOD in order to find and existing
-  ;; method with the same specializers and the same qualifiers, so
-  ;; that that existing method can be removed first.
-  (import-function-from-host 'find-if e3)
-  (load-fasl "CLOS/add-remove-method-support.fasl" e3)
-  (load-fasl "CLOS/add-remove-method-defmethods.fasl" e3))
+  (load-source "CLOS/add-remove-method-defgenerics.lisp" e3)
+  (load-source "CLOS/add-remove-method-support.lisp" e3)
+  (load-source "CLOS/add-remove-method-defmethods.lisp" e3))
 
 (defun define-add-remove-direct-method (e3)
-  ;; ADJOIN is called by ADD-DIRECT-METHOD.
-  ;; REMOVE is called by REMOVE-DIRECT-METHOD.
-  (import-functions-from-host '(adjoin remove) e3)
-  (load-fasl "CLOS/add-remove-direct-method-defgenerics.fasl" e3)
-  (load-fasl "CLOS/add-remove-direct-method-support.fasl" e3)
-  (load-fasl "CLOS/add-remove-direct-method-defmethods.fasl" e3))
+  (load-source "CLOS/add-remove-direct-method-defgenerics.lisp" e3)
+  (load-source "CLOS/add-remove-direct-method-support.lisp" e3)
+  (load-source "CLOS/add-remove-direct-method-defmethods.lisp" e3))
 
 (defun define-reader/writer-method-class (e2 e3)
-  (setf (sicl-genv:fdefinition 'sicl-clos:reader-method-class e3)
-        (lambda (&rest arguments)
-          (declare (ignore arguments))
-          (sicl-genv:find-class 'sicl-clos:standard-reader-method e2)))
-  (setf (sicl-genv:fdefinition 'sicl-clos:writer-method-class e3)
-        (lambda (&rest arguments)
-          (declare (ignore arguments))
-          (sicl-genv:find-class 'sicl-clos:standard-writer-method e2))))
+  (sicl-boot:with-straddled-function-definitions
+      ((sicl-clos::reader-method-class-default
+        sicl-clos::writer-method-class-default)
+       e3)
+    (load-source "CLOS/reader-writer-method-class-support.lisp" e2))
+  (load-source "CLOS/reader-writer-method-class-defgenerics.lisp" e3)
+  (load-source "CLOS/reader-writer-method-class-defmethods.lisp" e3))
 
 (defun define-direct-slot-definition-class (e2 e3)
-  (setf (sicl-genv:fdefinition 'sicl-clos:direct-slot-definition-class e3)
-        (lambda (&rest arguments)
-          (declare (ignore arguments))
-          (sicl-genv:find-class 'sicl-clos:standard-direct-slot-definition e2))))
+  (sicl-boot:with-straddled-function-definitions
+      ((sicl-clos::direct-slot-definition-class-default)
+       e3)
+    (load-source "CLOS/direct-slot-definition-class-support.lisp" e2))
+  (load-source "CLOS/direct-slot-definition-class-defgeneric.lisp" e3)
+  (load-source "CLOS/direct-slot-definition-class-defmethods.lisp" e3))
 
 (defun define-find-or-create-generic-function (e3 e4)
   (setf (sicl-genv:fdefinition 'sicl-clos::find-or-create-generic-function e3)
@@ -51,8 +39,8 @@
           (sicl-genv:fdefinition name e4))))
 
 (defun define-validate-superclass (e3)
-  (load-fasl "CLOS/validate-superclass-defgenerics.fasl" e3)
-  (load-fasl "CLOS/validate-superclass-defmethods.fasl" e3))
+  (load-source "CLOS/validate-superclass-defgenerics.lisp" e3)
+  (load-source "CLOS/validate-superclass-defmethods.lisp" e3))
 
 (defun define-dependent-protocol (e3)
   (setf (sicl-genv:fdefinition 'sicl-clos:map-dependents e3)
@@ -102,17 +90,18 @@
     (define-validate-superclass e3)
     (define-direct-slot-definition-class e2 e3)
     (define-add-remove-direct-subclass e3)
+    (load-source "Environment/find-class-defun.lisp" e2)
+    (load-source "Environment/find-class-defun.lisp" e3)
     (define-reader/writer-method-class e2 e3)
-    (import-functions-from-host '(adjoin set-exclusive-or) e3)
     (define-add-remove-direct-method e3)
     (define-dependent-protocol e3)
     (define-add-remove-method e3)
     (setf (sicl-genv:special-variable 'sicl-clos::*class-t* e3 nil) nil)
-    (load-fasl "CLOS/add-accessor-method.fasl" e3)
+    (load-source "CLOS/add-accessor-method.lisp" e3)
     (define-find-or-create-generic-function e3 e4)
     (setf (sicl-genv:fdefinition 'sicl-clos:default-superclasses e3)
           (lambda (class) (declare (ignore class)) '()))
-    (import-function-from-host 'sicl-genv:typep e3)
-    (load-fasl "CLOS/class-initialization-support.fasl" e3)
-    (load-fasl "CLOS/class-initialization-defmethods.fasl" e3)
+    (load-source "CLOS/class-finalization-support.lisp" e3)
+    (load-source "CLOS/class-initialization-support.lisp" e3)
+    (load-source "CLOS/class-initialization-defmethods.lisp" e3)
     (define-ensure-class e2 e3)))

@@ -1,64 +1,49 @@
 (cl:in-package #:sicl-type)
 
-(defgeneric typep-atomic (object type environment))
-
-(defmethod typep-atomic (object type environment)
-  (let* ((global-env (cleavir-env:global-environment environment))
-	 (expander (sicl-genv:type-expander type global-env))
-	 (type-class (sicl-environment:find-class type environment))
-	 (object-class (class-of object)))
-    (cond ((not (null expander))
-	   ;; We found an expander.  Expand the type call TYPEP
-	   ;; recursively with the expanded type.
-	   (generic-typep object (funcall expander type) environment))
-	  ((not (null type-class))
-	   ;; The type specifier is the name of a class.  Then return
-	   ;; true if and only if the class of the object is a
-	   ;; subclass of the class named by the type.
-	   (closer-mop:subclassp object-class type-class))
-	  (t
-	   ;; The type has no expander associated with it and the type
-	   ;; is not also a class.  Furthermore, there was no method
-	   ;; on TYPEP-ATOMIC specialized to the name of the type.  
-	   ;; This can only mean that TYPE is not a valid type.
-	   (error "unknown type ~s" type)))))
-
-(defmethod typep-atomic (object (type (eql 'atom)) environment)
-  (atom object))
-
-(defmethod typep-atomic (object (type (eql 'base-char)) environment)
-  (characterp object))
-
-(defmethod typep-atomic (object (type (eql 'standard-char)) environment)
-  (characterp object))
-
-(defmethod typep-atomic (object (type (eql 'character)) environment)
-  (characterp object))
-
-(defun typep-atomic-float (object type)
-  (and (floatp object)
-       (same-float-type-p (type-of object) type)))
-
-(defmethod typep-atomic (object (type (eql 'short-float)) environment)
-  (typep-atomic-float object type))
-
-(defmethod typep-atomic (object (type (eql 'single-float)) environment)
-  (typep-atomic-float object type))
-
-(defmethod typep-atomic (object (type (eql 'double-float)) environment)
-  (typep-atomic-float object type))
-
-(defmethod typep-atomic (object (type (eql 'long-float)) environment)
-  (typep-atomic-float object type))
-
-(defmethod typep-atomic (object (type (eql 'keyword)) environment)
-  (and (symbolp object)
-       (eq (symbol-package object)
-	   (find-package '#:keyword))))
-
-(defmethod typep-atomic (object (type (eql 'nil)) environment)
-  nil)
-
-(defmethod typep-atomic (object (type (eql 'simple-array)) environment)
-  (and (arrayp object)
-       (null (array-displacement object))))
+(defun typep-atomic (object type-specifier)
+  (let ((global-environment (sicl-genv:global-environment)))
+    (cond ((symbolp type-specifier)
+           (case type-specifier
+             (atom
+              (not (consp object)))
+             ((base-char standard-char)
+              (characterp object))
+             (keyword
+              (and (symbolp object)
+                   (eq (symbol-package object)
+                       (find-package '#:keyword))))
+             (simple-array
+              (typep object 'array))
+             (class
+              (let ((object-class (class-of object)))
+                ;; RETURN true if and only if the class named CLASS is a
+                ;; member of the class precedence list of the class of
+                ;; the object.
+                (if (member (sicl-genv:find-class 'class global-environment)
+                            (sicl-clos:class-precedence-list object-class))
+                    t nil)))
+             (otherwise
+              (let ((expander (sicl-genv:type-expander type-specifier global-environment))
+                    (type-class (sicl-genv:find-class type-specifier global-environment)))
+                (cond ((not (null expander))
+                       ;; We found an expander.  Expand TYPE-SPECIFIER and call
+                       ;; TYPEP recursively with the expanded type specifier.
+                       (typep object (funcall expander type-specifier)))
+                      ((not (null type-class))
+                       ;; TYPE-SPECIFIER is the name of a class.
+                       (typep-atomic object type-class))
+                      (t
+                       ;; TYPE-SPECIFIER has no expander associated with it and it
+                       ;; is not also a class.  Furthermore, there was no method
+                       ;; on TYPEP-ATOMIC specialized to the name of the type.
+                       ;; This can only mean that TYPE-SPECIFIER is not a valid
+                       ;; type specifier.
+                       (error "unknown type ~s" type-specifier)))))))
+          ((typep type-specifier 'class)
+           (let ((object-class (class-of object)))
+             ;; RETURN true if and only if TYPE-SPECIFIER is a member of the
+             ;; class precedence list of the class of the object.
+             (if (member type-specifier (sicl-clos:class-precedence-list object-class))
+                 t nil)))
+          (t
+           (error "Invalid type specifier ~s" type-specifier)))))

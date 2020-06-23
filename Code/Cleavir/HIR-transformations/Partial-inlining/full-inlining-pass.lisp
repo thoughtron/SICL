@@ -1,48 +1,67 @@
 (in-package #:cleavir-partial-inlining)
 
-(defun enter-unique-p (enter dag)
-  (= (length (gethash enter (cleavir-hir-transformations:dag-nodes dag))) 1))
-
 ;;; FIXME: move? finesse?
 (defun all-parameters-required-p (enter)
   (every (lambda (param) (typep param 'cleavir-ir:lexical-location))
          (cleavir-ir:lambda-list enter)))
+(defun lambda-list-too-hairy-p (lambda-list)
+  (or (member '&rest lambda-list)
+      (member '&key lambda-list)))
 
 ;;; Check that a call is valid so that we can avoid inlining invalid calls,
 ;;; and the inliner can safely assume calls are valid.
 ;;; That is, for something like ((lambda ()) x), we want a full call so that
 ;;; the client's runtime can do its normal error signaling.
-;;; We assume that all-parameters-required-p is true of the enter, which
-;;; makes this very easy to determine.
 ;;; FIXME: We should probably signal a warning. If we do, make sure it's not
-;;; redundant with CST-to-ASTs.
+;;; redundant with CST-to-AST's.
 (defun call-valid-p (enter call)
-  (let ((nparams (length (cleavir-ir:lambda-list enter)))
+  (let ((lambda-list (cleavir-ir:lambda-list enter))
         (nargs (1- (length (cleavir-ir:inputs call))))) ; one input for the function
-    (= nparams nargs)))
+    (assert (not (lambda-list-too-hairy-p lambda-list)))
+    ;; KLUDGE: This is basically another lambda list parser.
+    (let ((required-count 0)
+          (optional-count 0)
+          (state :required))
+      (dolist (item lambda-list)
+        (cond ((eq item '&optional)
+               (setq state :optional))
+              (t
+               (case state
+                 (:required (incf required-count))
+                 (:optional (incf optional-count))))))
+      (<= required-count nargs (+ optional-count required-count)))))
 
 ;;; get one potential inline that can be done, or else NIL.
 ;;; An inline here is a list (enter call uniquep), where uniquep expresses whether the function
 ;;; is not used for anything but this call.
-(defun one-potential-inline (dag destinies)
+(defun one-potential-inline (dag)
   (labels ((maybe-return-inline (node)
-             (let ((enter (cleavir-hir-transformations:enter-instruction node)))
+             (let* ((enter (cleavir-hir-transformations:enter-instruction node))
+                    (enclose (cleavir-hir-transformations:enclose-instruction node))
+                    (fun (first (cleavir-ir:outputs enclose)))
+                    result)
+               (cleavir-hir-transformations:copy-propagate-1 fun)
                (when (all-parameters-required-p enter)
-                 ;; function's environment does not escape.
                  ;; Now we just need to pick off any recursive uses, direct or indirect.
-                 (loop with enclose = (cleavir-hir-transformations:enclose-instruction node)
-                       with result
-                       with enclose-destinies = (gethash enclose destinies)
-                       with enclose-unique-p = (= (length enclose-destinies) 1)
-                       with enter-unique-p = (enter-unique-p enter dag)
-                       for caller in enclose-destinies
-                       when (eq caller :escape)
+                 (loop for user in (cleavir-ir:using-instructions fun)
+                       ;; Make sure all users are actually call instructions that only
+                       ;; use FUN in call position.
+                       unless (and (typep user 'cleavir-ir:funcall-instruction)
+                                   (eq (first (cleavir-ir:inputs user)) fun)
+                                   (not (member fun (rest (cleavir-ir:inputs user)))))
                          return nil
-                       when (parent-node-p node (instruction-owner caller)) ; recursive
+                       when (parent-node-p node (instruction-owner user)) ; recursive
                          return nil
-                       unless (call-valid-p enter caller) return nil
-                         ;; We're all good, but keep looking through for escapes and recursivity.
-                         do (setf result (list enter caller node enclose-unique-p enter-unique-p))
+                       ;; For now, since M-V-C doesn't track inlining
+                       ;; information, only check explicit inline
+                       ;; declarations for local functions.
+                       unless (or (typep user 'cleavir-ir:multiple-value-call-instruction)
+                                  (eq (cleavir-ir:inline-declaration user) 'inline))
+                         return nil
+                       unless (call-valid-p enter user)
+                         return nil
+                       ;; We're all good, but keep looking through for escapes and recursivity.
+                       do (setf result (list enter user node))
                        finally (return-from one-potential-inline result)))))
            (parent-node-p (parent enter)
              ;; parent is a node (i.e. enclose), enter is an enter instruction
@@ -66,19 +85,6 @@
     ;; No dice.
     nil))
 
-(defun update-destinies-map (worklist destinies-map)
-  (let ((encloses '()))
-    (dolist (thing worklist)
-      (etypecase thing
-        (cleavir-ir:enclose-instruction
-         (pushnew thing encloses))
-        (cleavir-ir:funcall-instruction
-         (dolist (enclose (cleavir-hir-transformations:destiny-find-encloses thing))
-           (pushnew enclose encloses)))))
-    (dolist (enclose encloses)
-      (setf (gethash enclose destinies-map)
-            (cleavir-hir-transformations:find-enclose-destinies enclose)))))
-
 ;;; Returns whether the location needs an explicit cell.
 (defun explicit-cell-p (location)
   (let ((owner (gethash location *location-ownerships*)))
@@ -93,8 +99,9 @@
     (let ((location (first (cleavir-ir:outputs binding-assignment))))
       (when (and location (explicit-cell-p location))
         (let ((create (make-instance 'cleavir-ir:create-cell-instruction
-                                     :policy (cleavir-ir:policy binding-assignment)
-                                     :dynamic-environment (cleavir-ir:dynamic-environment binding-assignment))))
+                        :origin (cleavir-ir:origin binding-assignment)
+                        :policy (cleavir-ir:policy binding-assignment)
+                        :dynamic-environment (cleavir-ir:dynamic-environment binding-assignment))))
           (dolist (user (cleavir-ir:using-instructions location))
             (cleavir-hir-transformations:replace-inputs location location user))
           (dolist (definer (cleavir-ir:defining-instructions location))
@@ -102,7 +109,7 @@
           (cleavir-ir:insert-instruction-after create binding-assignment)
           (setf (cleavir-ir:outputs create) (list location)))))))
 
-(defun do-inlining (initial-instruction)
+(defun full-inlining-pass (initial-instruction)
   ;; Need to remove all useless instructions first for incremental
   ;; r-u-i to catch everything.
   (cleavir-remove-useless-instructions:remove-useless-instructions initial-instruction)
@@ -111,31 +118,20 @@
         with *location-ownerships*
           = (cleavir-hir-transformations:compute-location-owners initial-instruction)
         with *function-dag* = (cleavir-hir-transformations:build-function-dag initial-instruction)
-        with *destinies-map* = (cleavir-hir-transformations:compute-destinies initial-instruction)
-        with *destinies-worklist* = '()
         with *binding-assignments* = '()
-        for inline = (one-potential-inline *function-dag* *destinies-map*)
+        for inline = (one-potential-inline *function-dag*)
         until (null inline)
-        do (destructuring-bind (enter call node enclose-unique-p enter-unique-p) inline
+        do (destructuring-bind (enter call node) inline
              ;; Find all instructions that could potentially be deleted after inlining.
-             (let ((function-defs (cleavir-ir:defining-instructions (first (cleavir-ir:inputs call))))
-                   (destinies-map *destinies-map*))
-               (if (and enclose-unique-p enter-unique-p)
-                   (interpolate-function call enter)
-                   (inline-function initial-instruction call enter (make-hash-table :test #'eq)))
+             (let ((function-defs (cleavir-ir:defining-instructions (first (cleavir-ir:inputs call)))))
+               (inline-function initial-instruction call enter (make-hash-table :test #'eq))
                (dolist (deleted
                         (cleavir-remove-useless-instructions:remove-useless-instructions-from function-defs))
                  (typecase deleted
                    (cleavir-ir:enclose-instruction
                     (cleavir-hir-transformations:remove-enclose-from-function-dag
                      *function-dag*
-                     deleted
-                     (and enclose-unique-p enter-unique-p)))))
-               ;; The call is gone, so it is no longer a destiny.
-               (update-destinies-map (cons (cleavir-hir-transformations:enclose-instruction node)
-                                           *destinies-worklist*)
-                                     destinies-map)
-               (setf *destinies-worklist* nil)))
+                     deleted))))))
         finally
            (cleavir-remove-useless-instructions:remove-useless-instructions initial-instruction)
            ;; We must reinitialize data here, because some data may
@@ -145,3 +141,9 @@
            ;; information.
            (cleavir-ir:reinitialize-data initial-instruction)
            (convert-binding-instructions *binding-assignments*)))
+
+(defun do-inlining (initial-instruction)
+  ;; Do this first to pick off stuff that doesn't need full copying
+  ;; inlining.
+  (interpolable-function-analyze initial-instruction)
+  (full-inlining-pass initial-instruction))

@@ -16,9 +16,6 @@
     (setf sicl-genv:function-type)
     (setf sicl-genv:function-lambda-list)
     (setf sicl-genv:fdefinition)
-    cleavir-environment:global-environment
-    cleavir-environment:symbol-macro-expansion
-    cleavir-environment:macro-function
     cleavir-code-utilities:parse-macro
     cleavir-code-utilities:parse-deftype
     cleavir-code-utilities:separate-ordinary-body
@@ -55,26 +52,9 @@
 (defparameter *imported-variables*
   '(*package* *macroexpand-hook*))
 
-(defparameter *imported-packages*
-  '(#:common-lisp
-    #:sicl-evaluation-and-compilation
-    #:sicl-global-environment
-    #:sicl-data-and-control-flow
-    #:sicl-conditionals
-    #:sicl-arithmetic
-    #:sicl-loop
-    #:sicl-cons
-    #:sicl-iteration
-    #:sicl-standard-environment-macros
-    #:sicl-standard-environment-functions))
-
 (defun import-function-from-host (function-name to-environment)
   (setf (sicl-genv:fdefinition function-name to-environment)
         (fdefinition function-name)))
-
-(defun import-package-from-host (package-name to-environment)
-  (push (find-package package-name)
-        (sicl-genv:packages to-environment)))
 
 (defun import-from-host (environment)
   (host-load "Data-and-control-flow/defun-support.lisp")
@@ -108,7 +88,4 @@
   ;; Import all standard special operators
   (do-symbols (symbol (find-package '#:common-lisp) nil)
     (when (special-operator-p symbol)
-      (setf (sicl-genv:special-operator symbol environment) t)))
-  ;; Import some packages
-  (loop for name in *imported-packages*
-        do (import-package-from-host name environment)))
+      (setf (sicl-genv:special-operator symbol environment) t))))

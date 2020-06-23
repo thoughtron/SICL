@@ -12,8 +12,9 @@
 
 \acmConference[ELS'20]{the 13th European Lisp Symposium}{April 27--28 2020}{%
   Zürich, Switzerland}
-\acmISBN{978-2-9557474-3-8}
-\acmDOI{10.5281/zenodo.2634314}
+%\acmISBN{978-2-9557474-3-8}
+\acmISBN{}
+\acmDOI{10.5281/zenodo.3747548}
 \startPage{1}
 \setcopyright{rightsretained}
 \copyrightyear{2020}
@@ -31,19 +32,19 @@
   \country{France}}
 
 \begin{abstract}
-The state of art of application debugging in free \commonlisp{}
+The state of the art in application debugging in free \commonlisp{}
 implementations leaves much to be desired.  In many cases, only a
 backtrace inspector is provided, allowing the application programmer
 to examine the control stack when an unhandled error is signaled.
 Most such implementations do not allow the programmer to set
-breakpoints (unconditional or conditional), or step the program after
-it has stopped.
+breakpoints (unconditional or conditional), nor to step the program
+after it has stopped.
 
 Furthermore, even debugging tools such as tracing or manually calling
 \texttt{break} are typically very limited in that they do not allow
 the programmer to trace or break in important system functions such as
 \texttt{make-instance} or \texttt{shared-initialize}, simply because
-these tools impact all callers including those of the system itself
+these tools impact all callers, including those of the system itself,
 such as the compiler.
 
 In this paper, we suggest a technique that solves most of these
@@ -52,29 +53,30 @@ or more \emph{application threads}, with all these threads running in
 the same image.  Tracing and setting breakpoints have an effect only
 in the debugged thread so that system code running in other threads is
 not impacted.  We discuss several advantages of this technique, and in
-particular how it can make debugging \emph{omnipresent}, i.e. not
-requiring recompilation to get its benefits, yet how the
-\emph{overhead} can be kept low for threads that are not being
-debugged.
+particular how it can make debugging \emph{omnipresent}, i.e., not
+requiring recompilation to get its benefits.  We describe how to
+achieve this advantage while keeping the \emph{overhead} low for
+threads that are not being debugged.
 \end{abstract}
+
 
 \begin{CCSXML}
 <ccs2012>
 <concept>
-<concept_id>10011007.10011006.10011041</concept_id>
-<concept_desc>Software and its engineering~Compilers</concept_desc>
+<concept_id>10011007.10011074.10011099.10011102.10011103</concept_id>
+<concept_desc>Software and its engineering~Software testing and debugging</concept_desc>
 <concept_significance>500</concept_significance>
 </concept>
 <concept>
-<concept_id>10011007.10011006.10011008.10011009.10011021</concept_id>
-<concept_desc>Software and its engineering~Multiparadigm languages</concept_desc>
-<concept_significance>300</concept_significance>
+<concept_id>10011007.10011006.10011041.10011048</concept_id>
+<concept_desc>Software and its engineering~Runtime environments</concept_desc>
+<concept_significance>500</concept_significance>
 </concept>
 </ccs2012>
 \end{CCSXML}
 
-\ccsdesc[500]{Software and its engineering~Compilers}
-\ccsdesc[300]{Software and its engineering~Multiparadigm languages}
+\ccsdesc[500]{Software and its engineering~Software testing and debugging}
+\ccsdesc[500]{Software and its engineering~Runtime environments}
 
 \keywords{\clos{}, \commonlisp{}, Compilation, Debugging}
 
@@ -86,6 +88,7 @@ debugged.
 \inputtex{sec-sicl.tex}
 \inputtex{sec-our-method.tex}
 \inputtex{sec-benefits.tex}
+\inputtex{sec-disadvantages.tex}
 \inputtex{sec-conclusions.tex}
 \inputtex{sec-acknowledgments.tex}
 

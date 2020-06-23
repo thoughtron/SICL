@@ -1,0 +1,209 @@
+\chapter{Bootstrapping principles}
+
+In this appendix, we describe general principles of bootstrapping, as
+opposed to implementation details.
+
+\section{General restrictions}
+
+We define the \emph{purity} of some object to be a non-negative
+integer.  An object of purity $p$ is an instance of a class of purity
+$p-1$.  An object of purity $0$ is a \emph{host object}.  An object of
+purity $1$ is a is a \emph{bridge object}.  An object of purity $2$ is
+an \emph{impure ersatz object}.  An object of purity $3$ or more is a
+\emph{pure ersatz object}.  Each \emph{phase} of the bootstrapping
+procedure creates objects of one purity.  Currently, bootstrapping
+phase $n$ creates objects of purity $p=n-2$.  Phase $n$ puts generic
+function objects in environment $E_{n+1}$ and class objects in
+environment $E_n$.
+
+Suppose we want to access some part of a generic function metaobject
+of purity $p$.  Perhaps we want to add methods to it, or set its
+discriminating function.  During bootstrapping, such access must be
+done by fully functioning generic functions.  For that reason, we use
+functions of purity $p-1$ for such access, and we can assume that when
+we need to accomplish such access to a generic function of purity $p$,
+then either the accessors of purity $p-1$ are either already fully
+functional, or the machinery for making them fully functional is fully
+functional, so that we can freely use generic functions of purity
+$p-1$ to access a generic function of purity $p$.
+
+In general we would like for the slots of an object of purity $p$ to
+contain objects of purity $p$, with the exception of meta-level
+information.
+
+For generic function metaobjects, this restriction implies that we
+want the methods of a generic function of purity $p$ to be objects of
+purity $p$, and we want the method functions of those methods to be
+objects of purity $p$.  Idem for the \emph{method combination}, the
+\emph{effective method functions}, and the \emph{discriminating
+  function}.  It follows that the \emph{generic-function class} and
+the \emph{method class} of a generic function of purity $p$ are
+objects of purity $p-1$.
+
+For classes, the restriction implies that the slot metaobjects, the
+superclasses, the subclasses, etc. of a class of purity $p$ should
+also be of purity $p$.
+
+In general, we would like for a function of purity $p$ to call other
+functions of purity $p$, but during bootstrapping we can not always
+accomplish this restriction.  As a general principle, however, we want
+to minimize the exceptions to this rule, because these exceptions
+require specific bootstrapping code to be handled correctly.
+
+\section{Object creation}
+\label{sec-app-bootstrapping-object-allocation}
+
+An object is created by a call to \texttt{make-instance}.
+Suppose we want to create an object of purity $p$.  To do so, we
+need to instantiate a class of purity $p-1$.  Instantiating a class
+involves calling \texttt{make-instance}, which is a generic
+function.  But \texttt{make-instance} must call other functions.  One
+such function \texttt{compute-defaulted-initargs} which
+computes the \emph{defaulted initialization arguments},
+given the class metaobject passed to \texttt{make-instance} and the
+initialization arguments passed to it.  The function doing this
+computation must inspect the class metaobject in that it must call the
+accessor \texttt{class-default-initargs}.  This latter function must
+therefore have purity $p-2$ since it takes an argument of purity
+$p-1$.  If we assume that \texttt{make-instance} and the function for
+computing the defaulted initialization arguments have the same purity,
+then \texttt{make-instance} has purity $p-2$ as well.  Now, values of
+keyword arguments passed to \texttt{make-instance} may be objects that
+will become part of the object being created, in which case, those
+values should have the same purity as that object, namely $p$.
+
+Once the defaulted initialization arguments are computed, their
+validity must be checked.  This task is accomplished by the function
+\texttt{check-initargs-valid}.
+
+Once initialization arguments have been validated,
+\texttt{make-instance} calls \texttt{allocate-instance} in order to
+create the instance of the class.
+
+Finally, the new instance must be passed to
+\texttt{initialize-instance} for initialization.
+
+Object creation is illustrated in \refFig{fig-make-instance}.  As we
+can see, \texttt{make-instance} must call functions of two different
+purity values.  For that reason, \texttt{make-instance} must be
+handled specially during bootstrapping.
+
+Another interesting aspect of \texttt{make-instance} is that, if it is
+given a symbol as opposed to a class metaobject, it must call
+\texttt{find-class}.  Now \texttt{find-class} is probably an ordinary
+function, and it must find a class metaobject of purity $p-1$.  If we
+assume that \texttt{find-class} has the same purity as
+\texttt{make-instance}, then we have a function of purity $p-2$ that
+must find a class metaobject of purity $p-1$.  This information may
+determine in which environment we decide to allocate functions and
+classes of different purity.
+
+\begin{figure}
+\begin{center}
+\inputfig{fig-make-instance.pdf_t}
+\end{center}
+\caption{\label{fig-make-instance}
+Object allocation.}
+\end{figure}
+
+\section{Checking the validity of initargs to \texttt{make-instance}}
+
+Once the defaulted initialization arguments are computed, their
+validity must be checked.  This task is accomplished by the function
+\texttt{check-initargs-valid}.  This function call accessors on the
+class metaobject.  In addition, it must inspect methods on
+\texttt{allocate-instance}, \texttt{make-instance},
+\texttt{initialize-instance}, and \texttt{shared-initialize}.
+These functions do not all have the same purity.  For that reason, we
+do not check the validity of initargs during bootstrapping.
+
+\section{Object initialization}
+
+Once an instance has been created, \texttt{initialize-instance} is
+called, and \texttt{initialize-instance} immediately calls
+\texttt{shared-initialize}.  During bootstrapping, both these
+functions are generic functions.  For that reason, when used to
+initialize an object of purity $p$,  They must be defined in
+environment $E_{p+2}$.
+
+\section{Processing the \texttt{defclass} macro}
+
+The expansion of the \texttt{defclass} macro results in a call to
+\texttt{ensure-class} which is an ordinary function that immediately
+calls the generic function \texttt{ensure-class-using-class}.  The
+\textit{class} argument to \texttt{ensure-class-using-class} is either
+\texttt{nil} if the class does not exist, or the class metaobject to
+be reinitialized.  Thus, if the new or the existing class is an object
+of purity $p$, then \texttt{ensure-class} and
+\texttt{ensure-class-using-class} should be of purity $p-1$.
+The AMOP states that the \emph{direct-superclasses} argument to
+\texttt{defclass} becomes the value of the
+\texttt{:direct-superclasses} argument to \texttt{ensure-class} so
+there is no call to \texttt{find-class} involved here.
+
+The most interesting aspect of the \texttt{defclass} macro is the
+conversion of a slot specification to a \emph{canonicalized slot
+  specification}, and specifically the conversion of the
+\texttt{:initform} option to the value of the \texttt{:initfunction}
+option.  This conversion is done by \texttt{compile} that takes the
+initform wrapped in a \texttt{lambda} expression and turns it into a
+function.  So \texttt{compile} in this case, must build a function of
+purity $p$ since it is going to become part of a slot-definition
+metaobject of that purity.
+
+The \texttt{:metaclass} option to the \texttt{defclass} macro becomes
+the value of the \texttt{:metaclass} keyword argument to
+\texttt{ensure-class}, so no conversion is involved.
+
+The keyword argument \texttt{:direct-superclasses} passed to
+\texttt{ensure-class-using-class} may contain class names or class
+metaobjects.  If it contains a class name, it is converted to a class
+metaobject.  It must do so by calling \texttt{find-class} or something
+similar.  So preferably, \texttt{find-class} has purity $p-1$ as well,
+and it must find a class with purity $p$.  This behavior is consistent
+with the \texttt{find-class} we encountered in
+\refSec{sec-app-bootstrapping-object-allocation}.
+
+The keyword argument \texttt{:metaclass} passed to
+\texttt{ensure-class-using-class} may contain a class name or a class
+metaobject.  If it contains a class name, it is converted to a class
+metaobject.  It must do so by calling \texttt{find-class} or something
+similar.  In this case, \texttt{find-class} must find a class with
+purity $p-1$ which is in direct conflict with what it must do for the
+\texttt{:direct-superclasses} option.  We solve this problem in
+\sysname{} by using an indirection called \texttt{find-metaclass} that
+does what is needed.
+
+\section{Initialization of class metaobjects}
+
+In \sysname{}, class initialization is accomplished by an
+\texttt{:around} method on \texttt{shared-initialize}.  It calls an
+ordinary function to accomplish its task.  If the class metaobject to
+be initialized has purity $p$, then \texttt{shared-initialize} has
+purity $p-1$.
+
+The \texttt{:direct-slots} argument is a list of canonicalized slot
+specifications.  Each element is converted to a direct slot definition
+metaobject.  This conversion is done in two steps.  First the generic
+function \texttt{direct-slot-definition-class} is called, passing the
+class metaobject as an argument.  Therefore
+\texttt{direct-slot-definition-class} is a generic function of purity
+$p-1$, just like \texttt{shared-initialize}.  Second,
+\texttt{make-instance} is called with the class returned by
+\texttt{direct-slot-definition-class}, and the canonicalized
+slot specification.  So, here \texttt{make-instance} is called on a
+class of purity $p$.  Therefore \texttt{make-instance} is of purity
+$p-1$.
+
+\section{Accessing slots}
+
+
+
+\begin{figure}
+\begin{center}
+\inputfig{fig-slot-boundp-using-class.pdf_t}
+\end{center}
+\caption{\label{fig-slot-boundp-using-class}
+\texttt{slot-boundp-using-class}.}
+\end{figure}
+

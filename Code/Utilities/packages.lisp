@@ -2,4 +2,9 @@
 
 (defpackage #:sicl-utilities
   (:use #:common-lisp)
-  (:export #:once-only))
+  (:export
+   #:flp2
+   #:clp2
+   #:once-only
+   #:with-gensyms
+   #:with-collectors))

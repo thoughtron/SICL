@@ -28,7 +28,8 @@
 ;;; preserved, and the number of inputs is kept with the global values
 ;;; location.
 
-(defclass fixed-to-multiple-instruction (instruction one-successor-mixin)
+(defclass fixed-to-multiple-instruction
+    (instruction one-successor-mixin side-effect-mixin)
   ())
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -77,7 +78,14 @@
 ;;; entry to be the top of the dynamic environment.  The output holds
 ;;; the augmented dynamic environment.
 
-(defclass save-values-instruction (instruction one-successor-mixin)
+;;; FIXME: this instruction should not be a subclass of
+;;; SIDE-EFFECT-MIXIN.  It is temporarily the case until we fix
+;;; REMOVE-USELESS-INSTRUCTIONS to take dynamic environment locations
+;;; into account.  Right now, the output of this instruction is
+;;; considered not used, so the instruction gets removed.
+
+(defclass save-values-instruction
+    (instruction one-successor-mixin side-effect-mixin)
   ())
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -89,7 +97,8 @@
 ;;; DYNAMIC-ENVIRONMENT-LOCATION of this instruction, and stores that
 ;;; entry in the global values location.
 
-(defclass restore-values-instruction (instruction one-successor-mixin)
+(defclass restore-values-instruction
+    (instruction one-successor-mixin side-effect-mixin)
   ())
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

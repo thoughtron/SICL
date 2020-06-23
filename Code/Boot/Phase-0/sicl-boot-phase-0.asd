@@ -8,7 +8,7 @@
                #:sicl-package-support
                #:sicl-sequence-support
                #:sicl-arithmetic
-               #:sicl-method-combination-support
+               #:sicl-printer-support
                #:eclector
                #:eclector-concrete-syntax-tree
                #:cleavir-io)
@@ -16,7 +16,6 @@
   :components
   ((:file "packages")
    (:file "eval")
-   (:file "compile-file")
    (:file "host-load")
    (:file "import-from-host")
    (:file "define-defmacro")
@@ -25,5 +24,4 @@
    (:file "fill-environment")
    (:file "environment")
    (:file "load-file")
-   (:file "compile-files")
    (:file "boot")))

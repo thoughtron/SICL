@@ -3,8 +3,6 @@
 (defun fill-environment (client environment)
   (import-from-host environment)
   (sicl-hir-interpreter:fill-environment environment)
-  (setf (sicl-genv:fdefinition 'sicl-genv:global-environment environment)
-        (constantly environment))
   (define-defmacro environment)
   (define-backquote-macros environment)
   (define-setf-macro-function environment)
@@ -59,11 +57,6 @@
     ;; MULTIPLE-VALUE-LIST.  This definition is needed, because it is
     ;; used in the expansion of the macro NTH-VALUE loaded below.
     (ld "Data-and-control-flow/multiple-value-list-defmacro.lisp")
-    ;; Load a file containing the definition of the macro NTH-VALUE.
-    ;; This definition is needed by the function CONSTANTP which is
-    ;; loaded as part of the file standard-environment-functions.lisp
-    ;; loaded below.
-    (ld "Data-and-control-flow/nth-value.lisp")
     (ld "Data-and-control-flow/multiple-value-call-defmacro.lisp")
     ;; Load a file containing the definition of macro DEFUN.
     (ld "Data-and-control-flow/defun-defmacro.lisp")
@@ -72,7 +65,7 @@
     ;; because it takes an environment argument, and the host version
     ;; does not work with the Cleavir/SICL environment objects.
     (ld "Data-and-control-flow/get-setf-expansion-defun.lisp")
-    ;; Load a file containing definisions of standard conditional
+    ;; Load a file containing definitions of standard conditional
     ;; macros, such as AND, OR, CASE, etc.
     (ld "Conditionals/macros.lisp")
     ;; Load a file containing the definitions of the macros DEFVAR,
@@ -132,4 +125,5 @@
     (ld "CLOS/defgeneric-defmacro.lisp")
     ;; Load a file containing the definition of the macro DEFMETHOD.
     (ld "CLOS/defmethod-defmacro.lisp")
-    (ld "Method-combination/define-method-combination-defmacro.lisp")))
+    (ld "Method-combination/define-method-combination-defmacro.lisp")
+    (ld "Printer/print-unreadable-object-defmacro.lisp")))

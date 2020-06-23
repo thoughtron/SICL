@@ -2,16 +2,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;; Call profile.
+;;; Class cache.
 ;;;
-;;; A CALL PROFILE of a particular call to a generic function is a
-;;; list of classes of the required arguments passed to the generic
-;;; function in that call.  The call profile has the same order as the
-;;; required parameters of the generic function, independently of the
-;;; argument precedence order of the function.  The call profile is
-;;; what is passed to COMPUTE-APPLICABLE-METHODS-USING-CLASSES in
-;;; order to determine whether a list of applicable methods can be
-;;; computed, using only the classes of the required arguments.
+;;; A CLASS CACHE of a particular call to a generic function is a list
+;;; of classes of the specialized required arguments passed to the
+;;; generic function in that call.  The call class cache the same
+;;; order as the required parameters of the generic function,
+;;; independently of the argument precedence order of the function.
+;;; The class cache (together with the class T for unspecialized
+;;; arguments) is what is passed to
+;;; COMPUTE-APPLICABLE-METHODS-USING-CLASSES in order to determine
+;;; whether a list of applicable methods can be computed, using only
+;;; the classes of the required arguments.
+;;;
+;;; For a particular call to a generic function, if the classes of the
+;;; specialized required arguments correspond to the classes in a
+;;; class cache, then we have already at some point determined a list
+;;; of applicable methods for that call, so we do not have to compute
+;;; it again.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -35,36 +43,11 @@
 ;;; removed from the generic function.  When a method is added, each
 ;;; specializer of that method which is not the class named T causes
 ;;; the corresponding element of the specializer profile to be set to
-;;; T.  When a method is removed, the specializer profile is initially
-;;; set to a list of a NIL elements.  Then the list of methods of the
-;;; generic function is traversed and the specializer profile is
-;;; updated as if each method were just added to the generic function.
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;; Class number cache.
-;;;
-;;; A CLASS NUMBER CACHE of a particular call to a generic function is
-;;; a list of unique numbers of classes of specialized required
-;;; arguments passed in that call.  These classes (together with the
-;;; classes of the other required arguments) were passed to
-;;; COMPUTE-APPLICABLE-METHODS-USING-CLASSES, at some point, and that
-;;; function was able to compute an applicable method using only those
-;;; classes, which is why we have a corresponding class number cache
-;;; available.  The length of a class number cache is that of the
-;;; number of required arguments that are specialized, or
-;;; equivalently, the number of entries equal to T in the specializer
-;;; profile of the generic function.  The list is ordered from left to
-;;; right, i.e., the first element of the list corresponds to the
-;;; leftmost specialized required argument, etc.  In other words, the
-;;; order of the elements in the class number cache is independent of
-;;; the argument precedence order of the generic function.
-;;;
-;;; For a particular call to a generic function, if the unique numbers
-;;; of the classes of the specialized required arguments correspond to
-;;; the unique numbers of the classes in a class number cache, then we
-;;; have already at some point determined a list of applicable methods
-;;; for that call, so we do not have to compute it again.
+;;; T.  In this case, the call cache is discarded.  When a method is
+;;; removed, the specializer profile is initially set to a list of a
+;;; NIL elements.  Then the list of methods of the generic function is
+;;; traversed and the specializer profile is updated as if each method
+;;; were just added to the generic function.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -91,47 +74,37 @@
 ;;;
 ;;; A CALL CACHE represents information about a particular call to a
 ;;; generic function.  It is represented as a proper list with at
-;;; least 3 CONS cells in it, and it conceptually contains 4 items:
+;;; least 2 CONS cells in it, and it conceptually contains 3 items:
 ;;;
 ;;;   1. A class cache containing a list of class metaobjects, one for
 ;;;      each specialized required parameter, corresponding to the
 ;;;      classes of the arguments of the call.  This item is located
 ;;;      in the CAR of the list representing the call cache.
 ;;;
-;;;   2. A class number cache containing a list of class number, one
-;;;      for each specialized required parameter, corresponding to the
-;;;      class numbers of the classes in the class cache.  This item
-;;;      is located in the CADR of the list representing the call
-;;;      cache.
-;;;
-;;;   3. An effective method cache, containing the effective method
+;;;   2. An effective method cache, containing the effective method
 ;;;      function to invoke for calls with corresponding to the
 ;;;      classes in the class cache.  This item is located in the
 ;;;      CADDR of the list representing the call history entry.
 ;;;
-;;;   4. An applicable method cache, containing a list of the
+;;;   3. An applicable method cache, containing a list of the
 ;;;      applicable methods that make up the effective method for this
 ;;;      call.  This item is located in the CDDDR of the list
 ;;;      representing the call cache.
 
 (defun make-call-cache
-    (class-cache class-number-cache applicable-method-cache effective-method-cache)
-  (list* class-cache
-         class-number-cache
+    (relevant-classes applicable-method-cache effective-method-cache)
+  (list* relevant-classes
          effective-method-cache
          applicable-method-cache))
 
 (defun class-cache (call-cache)
   (car call-cache))
 
-(defun class-number-cache (call-cache)
+(defun effective-method-cache (call-cache)
   (cadr call-cache))
 
-(defun effective-method-cache (call-cache)
-  (caddr call-cache))
-
 (defun applicable-method-cache (call-cache)
-  (cdddr call-cache))
+  (cddr call-cache))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -280,6 +253,12 @@
 ;;; method or a standard writer method, it replaces it with a method
 ;;; that does a direct instance access according to the relevant class
 ;;; in CLASSES.  Otherwise, it returns the METHOD argument unchanged.
+;;;
+;;; We call the function FIND-ACCESSOR-METHOD-CLASS.  In the final
+;;; system, this function just trampolines to FIND-CLASS.  However,
+;;; during bootstrapping, we need to look for those classes in a
+;;; different environment, so we have a temporary definition of
+;;; FIND-ACCESSOR-METHOD-CLASS during bootstrapping.
 (defun maybe-replace-method (method classes)
   (let ((method-class (class-of method)))
     (flet ((slot-location (direct-slot class)
@@ -289,7 +268,8 @@
                                           :key #'slot-definition-name
                                           :test #'eq)))
                (slot-definition-location effective-slot))))
-      (cond ((eq method-class (find-class 'standard-reader-method))
+      (cond ((eq method-class
+                 (find-accessor-method-class 'standard-reader-method))
              (let* ((direct-slot (accessor-method-slot-definition method))
                     (location (slot-location direct-slot (car classes)))
                     (lambda-expression
@@ -299,14 +279,15 @@
                               `(car ',location)
                               `(standard-instance-access
                                 (car arguments) ,location)))))
-               (make-instance (find-class 'standard-reader-method)
+               (make-instance
+                   (find-accessor-method-class 'standard-reader-method)
                  :qualifiers '()
                  :specializers (method-specializers method)
                  :lambda-list (method-lambda-list method)
                  :slot-definition direct-slot
                  :documentation nil
                  :function (compile nil lambda-expression))))
-            ((eq method-class (find-class 'standard-writer-method))
+            ((eq method-class (find-accessor-method-class 'standard-writer-method))
              (let* ((direct-slot (accessor-method-slot-definition method))
                     (location (slot-location direct-slot (cadr classes)))
                     (lambda-expression
@@ -318,7 +299,8 @@
                               `(setf (standard-instance-access
                                       (cadr arguments) ,location)
                                      (car arguments))))))
-               (make-instance (find-class 'standard-writer-method)
+               (make-instance
+                   (find-accessor-method-class 'standard-writer-method)
                  :qualifiers '()
                  :specializers (method-specializers method)
                  :lambda-list (method-lambda-list method)
@@ -340,20 +322,21 @@
   (let ((df (compute-discriminating-function generic-function)))
     (set-funcallable-instance-function generic-function df)))
 
-;;; This function takes a generic function, a list of class numbers, a
-;;; list of classes, and a list of applicable methods and adds an new
-;;; call cache to the call history of the generic function.  If the
-;;; same (EQUAL) applicable method cache A already exists in some call
-;;; cache C in the call history, then the new call cache is
+;;; This function takes a generic function, a list of classes of all
+;;; the required arguments, a list of relevant classes (i.e., classes
+;;; of the arguments that have parameters that are specialized upon),
+;;; and a list of applicable methods.  It adds an new call cache to
+;;; the call history of the generic function.  If the same (EQUAL)
+;;; applicable method cache A already exists in some call cache C in
+;;; the call history, then the new call cache is constructed from the
+;;; list of class numbers passed as an argument, A, and the
+;;; effective-method cache of C.  Otherwise the new call cache is
 ;;; constructed from the list of class numbers passed as an argument,
-;;; A, and the effective-method cache of C.  Otherwise the new call
-;;; cache is constructed from the list of class numbers passed as an
-;;; argument, the list of applicable methods passed as an argument,
-;;; and a new effective method obtained by calling
-;;; COMPUTE-EFFECTIVE-METHOD.  Either way, we return the effective
-;;; method of the new call cache.
+;;; the list of applicable methods passed as an argument, and a new
+;;; effective method obtained by calling COMPUTE-EFFECTIVE-METHOD.
+;;; Either way, we return the effective method of the new call cache.
 (defun add-call-cache
-    (generic-function class-numbers classes applicable-methods)
+    (generic-function classes relevant-classes applicable-methods)
   (let* ((call-history (call-history generic-function))
          (call-cache (car (member applicable-methods call-history
                                   :key #'applicable-method-cache
@@ -371,8 +354,7 @@
                (effective-method-function (compile nil effective-method)))
           ;; Add a new call cache to the call history.
           (setf (call-history generic-function)
-                (cons (make-call-cache classes
-                                       class-numbers
+                (cons (make-call-cache relevant-classes
                                        applicable-methods
                                        effective-method-function)
                       call-history))
@@ -383,8 +365,7 @@
         (let ((applicable-methods (applicable-method-cache call-cache))
               (effective-method-function (effective-method-cache call-cache)))
           (setf (call-history generic-function)
-                (cons (make-call-cache classes
-                                       class-numbers
+                (cons (make-call-cache relevant-classes
                                        applicable-methods
                                        effective-method-function)
                       call-history))
@@ -400,12 +381,13 @@
 (defun default-discriminating-function (generic-function arguments profile)
   (let* ((required-argument-count (length profile))
          (required-arguments (subseq arguments 0 required-argument-count))
-         (stamps (loop for argument in required-arguments
-                       for p in profile
-                       when p
-                         collect (stamp argument)))
-         (entry (car (member stamps (call-history generic-function)
-                             :key #'class-number-cache :test #'equal))))
+         (classes (mapcar #'class-of required-arguments))
+         (relevant-classes (loop for class in classes
+                                 for p in profile
+                                 when p
+                                   collect class))
+         (entry (car (member relevant-classes (call-history generic-function)
+                             :key #'class-cache :test #'equal))))
     (unless (null entry)
       (compute-and-install-discriminating-function generic-function)
       (return-from default-discriminating-function
@@ -413,15 +395,19 @@
       ;; There should never be a valid entry, because it would
       ;; then have been found by the TAGBODY preceding this code.
     ;; (error "entry found"))
-    (let ((classes (mapcar #'class-of required-arguments))
-          (method-combination
+    (let ((method-combination
             (generic-function-method-combination generic-function)))
       (multiple-value-bind (applicable-methods ok)
           (compute-applicable-methods-using-classes generic-function classes)
         (when ok
+          (when (null applicable-methods)
+            ;; FIXME: Do this better
+            (error "No applicable methods ~s ~s~%"
+                   (generic-function-name generic-function)
+                   arguments))
           (let* ((effective-method (add-call-cache generic-function
-                                                   stamps
                                                    classes
+                                                   relevant-classes
                                                    applicable-methods))
                  (effective-method-function (compile nil effective-method)))
             (set-funcallable-instance-function

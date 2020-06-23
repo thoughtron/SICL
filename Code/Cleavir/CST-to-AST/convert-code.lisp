@@ -259,7 +259,7 @@
 (defmethod new-environment-from-parameter
     ((parameter cst:simple-variable) idspecs environment system)
   (augment-environment-with-variable (cst:name parameter)
-                                     idspecs
+                                     (first idspecs)
                                      environment
                                      environment))
 
@@ -280,7 +280,7 @@
 (defmethod new-environment-from-parameter
     ((parameter cst:aux-parameter) idspecs environment system)
   (augment-environment-with-variable (cst:name parameter)
-                                     idspecs
+                                     (first idspecs)
                                      environment
                                      environment))
 
@@ -450,16 +450,32 @@
       (cst:cons (make-atom-cst 'progn origin) forms-cst
                 :source origin)))
 
+;;; Given the entries and idspecs, compute and return an alist from LEXICAL-ASTs
+;;; to lists of declaration specifier CSTs for that lexical variable.
+(defun compute-bound-declarations (entries idspecs)
+  ;; NOTE: We use raw declaration specifiers so that ASTs can be serialized
+  ;; without CSTs having to be serializable, but we might want to decide
+  ;; otherwise later?
+  (loop for vargroup in entries for specgroup in idspecs
+        append (loop for variables in vargroup
+                     for specses in specgroup
+                     append (loop for variable
+                                    in (if (listp variables)
+                                           variables
+                                           (list variables))
+                                  for specs in specses
+                                  unless (null specs)
+                                    collect (cons variable
+                                                  (mapcar #'cst:raw specs))))))
+
 (defmethod convert-code (lambda-list-cst body-cst env system
-                         &key (block-name-cst nil) origin)
+                         &key (block-name-cst nil) origin name)
   (let ((parsed-lambda-list
           (cst:parse-ordinary-lambda-list system lambda-list-cst :error-p nil)))
     (when (null parsed-lambda-list)
       (error 'malformed-lambda-list :cst lambda-list-cst))
     (multiple-value-bind (declaration-csts documentation forms-cst)
         (cst:separate-function-body body-cst)
-      ;; FIXME: Handle documentation
-      (declare (ignore documentation))
       (let* ((declaration-specifiers
                (loop for declaration-cst in declaration-csts
                      append (cdr (cst:listify declaration-cst))))
@@ -468,16 +484,11 @@
                 system
                 (cleavir-env:declarations env)
                 declaration-specifiers))
-             ;; Note that lambda-list-from-parameter-groups makes ASTs,
-             ;; so this needs to be bound around that call.
-             (cleavir-ast:*dynamic-environment*
-               (cleavir-ast:make-dynamic-environment-ast
-                '#:dynamic-environment-argument
-                :origin origin)))
+             (itemized-lambda-list
+               (itemize-lambda-list parsed-lambda-list)))
         (multiple-value-bind (idspecs rdspecs)
             (itemize-declaration-specifiers-by-parameter-group
-             (itemize-lambda-list parsed-lambda-list)
-             canonicalized-dspecs)
+             itemized-lambda-list canonicalized-dspecs)
           (multiple-value-bind (lexical-lambda-list entries)
               (lambda-list-from-parameter-groups (cst:children parsed-lambda-list))
             (let ((ast
@@ -487,7 +498,12 @@
                      entries
                      (make-body rdspecs (cst-for-body forms-cst block-name-cst origin))
                      env
-                     system)))
+                     system))
+                  (bound-declarations
+                    (compute-bound-declarations entries idspecs)))
               (cleavir-ast:make-function-ast ast lexical-lambda-list
-                                             cleavir-ast:*dynamic-environment*
-                                             :origin origin))))))))
+                :name name
+                :original-lambda-list (cst:raw lambda-list-cst)
+                :docstring (when documentation (cst:raw documentation))
+                :bound-declarations bound-declarations
+                :origin origin))))))))

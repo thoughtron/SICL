@@ -32,12 +32,9 @@
     (let ((name (cst:raw name-cst)))
       (unless (symbolp name)
         (error 'block-name-must-be-a-symbol :cst name-cst))
-      (let* ((new-dynenv (cleavir-ast:make-dynamic-environment-ast
-                          '#:block-dynamic-environment))
-             (ast (cleavir-ast:make-block-ast
-                   nil new-dynenv :origin origin))
-             (new-env (cleavir-env:add-block env name ast))
-             (cleavir-ast:*dynamic-environment* new-dynenv))
+      (let* ((ast (cleavir-ast:make-block-ast
+                   nil :origin origin))
+             (new-env (cleavir-env:add-block env name ast)))
         (setf (cleavir-ast:body-ast ast)
               (process-progn (convert-sequence body-cst new-env system)
                              origin))
@@ -64,7 +61,8 @@
                              (cst:first rest-csts))))
           (loop while (null info)
                 do (restart-case (error 'cleavir-env:no-block-info
-                                        :cst block-name-cst)
+                                        :name block-name
+                                        :origin (cst:source block-name-cst))
                      (substitute (new-block-name)
                        :report (lambda (stream)
                                  (format stream "Substitute a different name."))
@@ -226,7 +224,7 @@
   (cleavir-env:identity (cleavir-env:function-info environment name)))
 
 ;;; Convert a local function definition.
-(defun convert-local-function (definition-cst environment system)
+(defun convert-local-function (definition-cst operator environment system)
   ;; FIXME: The error message if this check fails needs improvement.
   (check-argument-count definition-cst 1 nil)
   (cst:db origin (name-cst lambda-list-cst . body-cst) definition-cst
@@ -238,17 +236,18 @@
                     body-cst
                     environment
                     system
+                    :name (list operator (cst:raw name-cst))
                     :block-name-cst block-name-cst
                     :origin origin))))
 
 ;;; Convert a CST representing a list of local function definitions.
-(defun convert-local-functions (definitions-cst environment system)
+(defun convert-local-functions (definitions-cst operator environment system)
   (loop for remaining = definitions-cst
           then (cst:rest remaining)
         until (cst:null remaining)
         collect (let* ((def-cst (cst:first remaining))
                        (fun (convert-local-function
-                             def-cst environment system))
+                             def-cst operator environment system))
                        ;; compute these after calling convert-local-function
                        ;; so that we know def-cst is actually a list.
                        (name-cst (cst:first def-cst))
@@ -286,7 +285,7 @@
       (let* ((canonical-declaration-specifiers
                (cst:canonicalize-declarations
                 system (cleavir-env:declarations env) declaration-csts))
-             (defs (convert-local-functions definitions-cst env system))
+             (defs (convert-local-functions definitions-cst symbol env system))
              (new-env (augment-environment-from-fdefs env definitions-cst))
              (init-asts
                (compute-function-init-asts defs new-env))
@@ -317,7 +316,7 @@
                (cst:canonicalize-declarations
                 system (cleavir-env:declarations env) declaration-csts))
              (new-env (augment-environment-from-fdefs env definitions-cst))
-             (defs (convert-local-functions definitions-cst new-env system))
+             (defs (convert-local-functions definitions-cst symbol new-env system))
              (init-asts
                (compute-function-init-asts defs new-env))
              (final-env (augment-environment-with-declarations
@@ -358,23 +357,18 @@
                               (cleavir-ast:make-tag-ast
                                (cst:raw tag-cst)
                                :origin (cst:source tag-cst)))))
-          (new-dynenv (cleavir-ast:make-dynamic-environment-ast
-                       '#:tagbody-dynamic-environment))
           (new-env env))
-      (loop with cleavir-ast:*dynamic-environment* = new-dynenv
-            for ast in tag-asts
+      (loop for ast in tag-asts
             do (setf new-env (cleavir-env:add-tag
                               new-env (cleavir-ast:name ast) ast)))
-      (let ((item-asts (loop with cleavir-ast:*dynamic-environment* = new-dynenv
-                             for rest = body-cst then (cst:rest rest)
+      (let ((item-asts (loop for rest = body-cst then (cst:rest rest)
                              until (cst:null rest)
                              collect (let ((item-cst (cst:first rest)))
                                        (if (tagp item-cst)
                                            (pop tag-asts)
                                            (convert item-cst new-env system))))))
         (process-progn
-         (list (cleavir-ast:make-tagbody-ast item-asts new-dynenv
-                                             :origin origin)
+         (list (cleavir-ast:make-tagbody-ast item-asts :origin origin)
                (convert-constant (make-atom-cst nil origin) env system))
          origin)))))
 
@@ -389,7 +383,7 @@
   (check-argument-count cst 1 1)
   (cst:db origin (go-cst tag-cst) cst
     (declare (ignore go-cst))
-    (let ((info (tag-info env (cst:raw tag-cst))))
+    (let ((info (tag-info env tag-cst)))
       (cleavir-ast:make-go-ast
        (cleavir-env:identity info)
        :origin origin))))
@@ -537,7 +531,7 @@
 ;;;
 
 (defun convert-named-function (name-cst environment system)
-  (let ((info (function-info environment (cst:raw name-cst))))
+  (let ((info (function-info environment name-cst)))
     (convert-function-reference name-cst info environment system)))
 
 (defun convert-lambda-function (lambda-form-cst env system)

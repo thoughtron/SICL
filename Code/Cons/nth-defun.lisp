@@ -2,15 +2,11 @@
 
 (defun nth (n list)
   (unless (typep n '(integer 0))
-    (error 'must-be-nonnegative-integer
-           :datum n
-           :name 'nthcdr))
+    (error 'must-be-nonnegative-integer :datum n))
   (loop until (zerop n)
         until (atom list)
         do (decf n)
         do (setf list (cdr list)))
   (when (not (listp list))
-    (error 'must-be-list
-           :datum list
-           :name 'nth))
+    (error 'must-be-list :datum list))
   (car list))

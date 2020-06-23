@@ -66,6 +66,11 @@
 ;;; that a special variable entry exists for it AND the storage cell
 ;;; of that entry does not contain +unbound+.
 
+(defun boundp (symbol)
+  (sicl-genv:boundp
+   symbol
+   (load-time-value (sicl-genv:global-environment))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Function MAKUNBOUND.
@@ -167,10 +172,8 @@
 ;;; Function COMPILER-MACRO-FUNCTION.
 
 (defun compiler-macro-function (name &optional environment)
-  (let ((info (cleavir-env:function-info environment name)))
-    (if (null info)
-	nil
-	(cleavir-env:compiler-macro info))))
+  (sicl-genv:compiler-macro-function
+   name (sicl-genv:global-environment environment)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -178,21 +181,19 @@
 
 (defun (setf compiler-macro-function)
     (new-definition name &optional environment)
-  (when (null environment)
-    (setf environment
-	  (load-time-value (sicl-genv:global-environment))))
-  (setf (sicl-genv:compiler-macro-function name environment)
+  (setf (sicl-genv:compiler-macro-function
+         name (sicl-genv:global-environment environment))
 	new-definition))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Function GET-SETF-EXPANSION.
 
+;;; FIXME: This function should macroexpand the place if there is not
+;;; expander for it.
 (defun get-setf-expansion
-    (place
-     &optional
-       (environment (load-time-value (sicl-genv:global-environment))))
-  (let ((global-environment (cleavir-env:global-environment environment)))
+    (place &optional environment)
+  (let ((global-environment (sicl-genv:global-environment environment)))
     (if (symbolp place)
 	(let ((temp (gensym)))
 	  (values '() '() `(,temp) `(setq ,place ,temp) place))
@@ -204,34 +205,16 @@
 		(values temps
 			(rest place)
 			(list new)
-			`(funcall #'(setf ,(first place)) ,new ,@temps)
+			`(funcall (function (setf ,(first place))) ,new ,@temps)
 			`(,(first place) ,@temps)))
 	      (funcall expander place global-environment))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;; Function FIND-CLASS.
-
-(defun find-class
-    (symbol
-     &optional
-       (errorp t)
-       (environment (load-time-value (sicl-genv:global-environment))))
-  (let ((class (sicl-genv:find-class symbol environment)))
-    (if (and (null class) errorp)
-	(error 'no-such-class symbol)
-	class)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
 ;;; Function (SETF FIND-CLASS).
 
-(defun (setf find-class)
-    (new-class
-     symbol
-     &optional
-       errorp
-       (environment (load-time-value (sicl-genv:global-environment))))
+(defun (setf find-class) (new-class symbol &optional errorp environment)
   (declare (ignore errorp))
-  (setf (sicl-genv:find-class symbol environment)
-	new-class))
+  (let ((global-environment (sicl-genv:global-environment environment)))
+    (setf (sicl-genv:find-class symbol global-environment)
+          new-class)))

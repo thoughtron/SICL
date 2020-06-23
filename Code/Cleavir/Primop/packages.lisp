@@ -3,8 +3,7 @@
 (defpackage #:cleavir-primop
   (:use)
   (:export
-   #:eq
-   #:typeq
+   #:eq #:typeq #:case
    #:car #:cdr #:rplaca #:rplacd
    #:fixnum-arithmetic
    #:fixnum-add
@@ -32,6 +31,7 @@
    #:float-sqrt
    #:coerce
    #:slot-read #:slot-write
+   #:funcallable-slot-read #:funcallable-slot-write
    #:aref #:aset
    #:call-with-variable-bound
    #:let-uninitialized

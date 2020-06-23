@@ -1,38 +1,19 @@
-(defpackage #:sicl-program
-  (:use #:common-lisp)
-  (:export
-   #:program
-   #:backend
-   #:registers
-   #:*program*
-   #:touch
-   #:instruction-graph
-   #:no-error-successors
-   #:simplified-instructions
-   #:remove-nop-instructions
-   #:unique-constants
-   #:basic-blocks
-   #:dominance
-   #:no-constant-inputs
-   #:initial-transformations
-   #:convert-constant
-   #:convert-to-lir
-   #:required-register #:preferred-register
-   #:spill-cost
-   #:collect-dynamic-locations
-   ))
-
-(defpackage #:sicl-type-proclamations
-  (:use #:common-lisp)
-  (:shadowing-import-from #:sicl-global-environment
-			  #:proclaim))
+(cl:in-package #:common-lisp-user)
 
 (defpackage #:sicl-compiler
   (:use #:common-lisp)
-  (:shadow #:compile-file)
-  (:export
-   #:*backend*
-   #:compile-file
-   #:type-inference
-   #:trim-instruction-graph
-   ))
+  (:export #:+code-object-index+
+           #:+enclose-function-index+
+           #:+cons-function-index+
+           #:+nil-index+
+           #:+first-constant-index+
+           #:debug-information
+           #:code-object
+           #:instructions
+           #:frame-maps
+           #:callee-saves-register-maps
+           #:callee-saves-stack-maps
+           #:constants
+           #:function-names
+           #:hir
+           #:compile-ast))

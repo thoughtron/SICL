@@ -76,6 +76,7 @@
            #:compiler-macro-expansion-warning
            #:compiler-macro-expansion-style-warning
            #:eval-error #:eval-warning #:eval-style-warning
+           #:process-progn
            ;; Condition readers.
            #:cst
            #:original-condition
@@ -85,4 +86,5 @@
            #:consider-global
            #:consider-special
            #:substitute #:substitute-cst
-           #:signal-original-condition))
+           #:signal-original-condition
+           #:check-simple-primop-syntax))

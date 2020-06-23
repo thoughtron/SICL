@@ -3,6 +3,23 @@
 ;;;; This file contains definitions of AST classes that have to do
 ;;;; with fixnum arithmetic and comparison. 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Class FIXNUMP-AST.
+;;;
+;;; This AST can be used by implementations that represent fixnums as
+;;; immediate objects with tags.  It can only occur as the test of an
+;;; IF-AST.
+
+(defclass fixnump-ast (ast boolean-ast-mixin)
+  ((%object-ast :initarg :object-ast :reader object-ast)))
+
+(cleavir-io:define-save-info fixnump-ast
+  (:object-ast object-ast))
+
+(defmethod children ((ast fixnump-ast))
+  (list (object-ast ast)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Classes for fixnum arithmetic.
@@ -62,6 +79,30 @@
 
 (defmethod children ((ast fixnum-sub-ast))
   (list (arg1-ast ast) (arg2-ast ast) (variable-ast ast)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Class FIXNUM-DIVIDE-AST.
+;;;
+;;; This AST can be used to implement a binary division function.  It
+;;; requires its first argument to evaluate to a non-negative FIXNUM
+;;; and its second argument to evaluate to a positive fixnum.  This
+;;; AST can occur only in a context where exactly two results are
+;;; required.  As a consequence of the operation, the first result
+;;; will contain the quotient between the two arguments, and the
+;;; second result will contain the remainder.  Rounding is towards
+;;; zero as with the Common Lisp function FLOOR.
+
+(defclass fixnum-divide-ast (ast boolean-ast-mixin)
+  ((%dividend-ast :initarg :dividend-ast :reader dividend-ast)
+   (%divisor-ast :initarg :divisor-ast :reader divisor-ast)))
+
+(cleavir-io:define-save-info fixnum-divide-ast
+  (:dividend-ast dividend-ast)
+  (:divisor-ast divisor-ast))
+
+(defmethod children ((ast fixnum-divide-ast))
+  (list (dividend-ast ast) (divisor-ast ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;

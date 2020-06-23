@@ -21,6 +21,8 @@
                               (1/10 (clim:scrolling () inter))))
                        (1/2 (clim:scrolling () source))))))
 
+(defclass argument () ())
+
 (defun display-arguments (frame pane)
   (let ((entry (current-entry frame)))
     (unless (null entry)
@@ -33,7 +35,9 @@
                  (declare (ignore x))
                  (setf (clim:stream-cursor-position pane)
                        (values 30 y)))
-               (format pane "~s~%" argument)))))
+               (clim:with-output-as-presentation
+                   (pane argument 'argument)
+                 (format pane "~s~%" argument))))))
 
 (defun display-entry (pane entry)
   (let ((origin (sicl-hir-interpreter:origin entry)))
@@ -95,7 +99,7 @@
                 (loop for i from (1+ start-line-index) below end-line-index
                       do (format pane "~a~%" (aref lines i)))
                 (format pane "~a" (subseq end-line 0 end-character-index)))
-              (format pane "~a%" (subseq end-line end-character-index))))
+              (format pane "~a~%" (subseq end-line end-character-index))))
         (loop for i from (1+ end-line-index) below (length lines)
               do (format pane "~a~%" (aref lines i)))))))
 
@@ -107,5 +111,3 @@
       (if new-process-p
           (clim-sys:make-process #'run)
           (run)))))
-  
-                         

@@ -2,4 +2,8 @@
 
 (defpackage #:sicl-hash-table
   (:use #:common-lisp)
-  (:export #:make-hash-table-iterator))
+  (:export #:*default-hash-table-class*
+           #:eq-hash #:equal-hash #:equalp-hash
+           #:%hash-table-test
+           #:find-hash-function #:sxhash
+           #:make-hash-table-iterator))

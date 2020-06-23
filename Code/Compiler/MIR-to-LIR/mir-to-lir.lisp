@@ -28,9 +28,6 @@
         until (null worklist)
         do (let* ((enter-instruction (pop worklist))
                   (lexical-locations (find-lexical-locations enter-instruction)))
-             (insert-while-loop enter-instruction)
-             (save-register-arguments enter-instruction)
-             (move-return-address enter-instruction)
              (cleavir-ir:map-instructions-arbitrary-order
               (lambda (instruction)
                 (let ((entry (find-if #'entry-point-input-p
@@ -39,4 +36,6 @@
                     (push (sicl-hir-to-mir:enter-instruction entry)
                           worklist)))
                 (process-instruction instruction lexical-locations))
-              enter-instruction))))
+              enter-instruction)
+             (save-arguments enter-instruction)
+             (move-return-address enter-instruction))))

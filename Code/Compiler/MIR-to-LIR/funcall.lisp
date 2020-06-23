@@ -22,35 +22,39 @@
 (defun do-arguments (instruction lexical-locations)
   (let ((inputs (cleavir-ir:inputs instruction)))
     (when (> (- (length inputs) 3) 5)
+      ;; Make room for the return address
+      (cleavir-ir:insert-instruction-before
+       (make-instance 'sicl-ir:push-instruction
+         :input (make-instance 'cleavir-ir:immediate-input
+                  :value 0))
+       instruction)
       (loop for argument in (reverse (subseq inputs (+ 3 5)))
             for constant-8 = (make-instance 'cleavir-ir:immediate-input :value 8)
-            do (cleavir-ir:insert-instruction-before
-                (make-instance 'cleavir-ir:unsigned-sub-instruction
-                  :inputs (list *rsp* constant-8)
-                  :output *rsp*)
-                instruction)
-               (when (lexical-p argument)
-                 (load-lexical argument *r11* instruction lexical-locations))
+            do (insert-memref-before
+                instruction
+                argument
+                *r11*
+                lexical-locations)
                (cleavir-ir:insert-instruction-before
-                (make-instance 'cleavir-ir:memset1-instruction
-                  :address *rsp*
-                  :value (if (lexical-p argument)
-                             *r11*
-                             argument))
+                (make-instance 'sicl-ir:push-instruction
+                  :input *r11*)
                 instruction)))
     (loop for argument in (subseq inputs 3 (min (+ 3 5) (length inputs)))
           for register in (list *rdi* *rsi* *rdx* *rcx* *r8*)
           do (if (lexical-p argument)
-                 (load-lexical argument register instruction lexical-locations)
+                 (insert-memref-before
+                  instruction
+                  argument
+                  register
+                  lexical-locations)
+                 ;; It is an immediate input.
                  (cleavir-ir:insert-instruction-before
                   (make-instance 'cleavir-ir:assignment-instruction
                     :input argument
                     :output register)
                   instruction)))))
 
-(defmethod process-instruction
-    ((instruction cleavir-ir:funcall-instruction)
-     lexical-locations)
+(defun process-funcall (instruction lexical-locations)
   (do-arguments instruction lexical-locations)
   (let ((inputs (cleavir-ir:inputs instruction)))
      ;; Store the static environment to R10.
@@ -59,7 +63,6 @@
          instruction
          (second inputs)
          *r10*
-         *r11*
          lexical-locations)
         (cleavir-ir:insert-instruction-before
          (make-instance 'cleavir-ir:assignment-instruction
@@ -72,7 +75,6 @@
          instruction
          (third inputs)
          *rbx*
-         *r11*
          lexical-locations)
         (cleavir-ir:insert-instruction-before
          (make-instance 'cleavir-ir:assignment-instruction
@@ -84,8 +86,12 @@
      instruction
      (first inputs)
      *rax*
-     *rax*
      lexical-locations)
     ;; Make RAX the only input.
     (setf (cleavir-ir:inputs instruction)
           (list *rax*))))
+
+(defmethod process-instruction
+    ((instruction cleavir-ir:funcall-instruction)
+     lexical-locations)
+  (process-funcall instruction lexical-locations))

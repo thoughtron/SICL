@@ -1,0 +1,368 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\beamertemplateshadingbackground{red!10}{blue!10}
+%\usepackage{fancybox}
+\usepackage{epsfig}
+\usepackage{verbatim}
+\usepackage{url}
+%\usepackage{graphics}
+%\usepackage{xcolor}
+\usepackage{fancybox}
+\usepackage{moreverb}
+%\usepackage[all]{xy}
+\usepackage{listings}
+\usepackage{filecontents}
+\usepackage{graphicx}
+
+\lstset{
+  language=Lisp,
+  basicstyle=\scriptsize\ttfamily,
+  keywordstyle={},
+  commentstyle={},
+  stringstyle={}}
+
+\def\inputfig#1{\input #1}
+\def\inputeps#1{\includegraphics{#1}}
+\def\inputtex#1{\input #1}
+
+\inputtex{logos.tex}
+
+%\definecolor{ORANGE}{named}{Orange}
+
+\definecolor{GREEN}{rgb}{0,0.8,0}
+\definecolor{YELLOW}{rgb}{1,1,0}
+\definecolor{ORANGE}{rgb}{1,0.647,0}
+\definecolor{PURPLE}{rgb}{0.627,0.126,0.941}
+\definecolor{PURPLE}{named}{purple}
+\definecolor{PINK}{rgb}{1,0.412,0.706}
+\definecolor{WHEAT}{rgb}{1,0.8,0.6}
+\definecolor{BLUE}{rgb}{0,0,1}
+\definecolor{GRAY}{named}{gray}
+\definecolor{CYAN}{named}{cyan}
+
+\newcommand{\orchid}[1]{\textcolor{Orchid}{#1}}
+\newcommand{\defun}[1]{\orchid{#1}}
+
+\newcommand{\BROWN}[1]{\textcolor{BROWN}{#1}}
+\newcommand{\RED}[1]{\textcolor{red}{#1}}
+\newcommand{\YELLOW}[1]{\textcolor{YELLOW}{#1}}
+\newcommand{\PINK}[1]{\textcolor{PINK}{#1}}
+\newcommand{\WHEAT}[1]{\textcolor{wheat}{#1}}
+\newcommand{\GREEN}[1]{\textcolor{GREEN}{#1}}
+\newcommand{\PURPLE}[1]{\textcolor{PURPLE}{#1}}
+\newcommand{\BLACK}[1]{\textcolor{black}{#1}}
+\newcommand{\WHITE}[1]{\textcolor{WHITE}{#1}}
+\newcommand{\MAGENTA}[1]{\textcolor{MAGENTA}{#1}}
+\newcommand{\ORANGE}[1]{\textcolor{ORANGE}{#1}}
+\newcommand{\BLUE}[1]{\textcolor{BLUE}{#1}}
+\newcommand{\GRAY}[1]{\textcolor{gray}{#1}}
+\newcommand{\CYAN}[1]{\textcolor{cyan }{#1}}
+
+\newcommand{\reference}[2]{\textcolor{PINK}{[#1~#2]}}
+%\newcommand{\vect}[1]{\stackrel{\rightarrow}{#1}}
+
+% Use some nice templates
+\beamertemplatetransparentcovereddynamic
+
+\newcommand{\A}{{\mathbb A}}
+\newcommand{\degr}{\mathrm{deg}}
+
+\title{Creating a \commonlisp{} implementation\\(Part 1)}
+
+\author{Robert Strandh}
+\institute{
+}
+\date{June, 2020}
+
+%\inputtex{macros.tex}
+
+\begin{document}
+\frame{
+\titlepage
+}
+
+\setbeamertemplate{footline}{
+\vspace{-1em}
+\hspace*{1ex}{~} \GRAY{\insertframenumber/\inserttotalframenumber}
+}
+
+\frame{
+\frametitle{Compiler for a traditional batch language}
+\vskip 0.25cm
+\begin{figure}
+\begin{center}
+\inputfig{fig-c-unix-1.pdf_t}
+\end{center}
+\end{figure}
+}
+
+\frame{
+\frametitle{Compiler for a traditional batch language}
+\vskip 0.25cm
+Characteristics:
+\vskip 0.25cm
+\begin{itemize}
+\item Macros and declarations (implicit or explicit) are entered into
+  the environment.
+\item The compiler uses the environment to emit warnings, and to
+  determine how to generate code.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Run-time support for a traditional batch language}
+\vskip 0.25cm
+\begin{figure}
+\begin{center}
+\inputfig{fig-c-unix-2.pdf_t}
+\end{center}
+\end{figure}
+}
+
+\frame{
+\frametitle{Run-time support for a traditional batch language}
+\vskip 0.25cm
+Characteristics:
+\vskip 0.25cm
+\begin{itemize}
+\item Each program executes in a separate address space
+\item Systems calls are used for file I/O, communication between
+  programs, configuration, etc.
+\item Communication between programs uses pipes, requiring transitions
+  through the kernel.
+\end{itemize}
+}
+
+\frame{
+\frametitle{\commonlisp{} file compiler}
+\vskip 0.25cm
+\begin{figure}
+\begin{center}
+\inputfig{fig-common-lisp-file-compilation.pdf_t}
+\end{center}
+\end{figure}
+}
+
+\frame{
+\frametitle{\commonlisp{} file compiler}
+\vskip 0.25cm
+Characteristics:
+\vskip 0.25cm
+\begin{itemize}
+\item Requires and existing \commonlisp{} implementation (at least partial).
+\item more?
+\end{itemize}
+}
+
+\frame{
+\frametitle{Run-time support for \commonlisp{} functions}
+\vskip 0.25cm
+\begin{figure}
+\begin{center}
+\inputfig{fig-common-lisp-run-time-support.pdf_t}
+\end{center}
+\end{figure}
+}
+
+\frame{
+\frametitle{Run-time support for \commonlisp{} functions}
+\vskip 0.25cm
+Characteristics:
+\vskip 0.25cm
+\begin{itemize}
+\item All functions share a common address space.
+\item Functions call other functions directly.
+\item Arbitrary data structures can be passed as arguments.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Creating a \commonlisp{} implementation}
+\vskip 0.25cm
+\begin{itemize}
+\item A compiler for a traditional language is a ``simple'' file
+  translator.
+\item Run-time support for a traditional language is provided by the
+  operating-system kernel.
+\item A compiler for a \commonlisp{} system is a bit more involved.
+\item Run-time support for \commonlisp{} is the \commonlisp{} system.
+\end{itemize}
+\vskip 0.25cm
+Creating a \commonlisp{} implementation involves writing a compiler, but
+also creating the run-time support, which has some of the aspects of
+a traditional operating-system kernel.
+}
+
+\frame{
+\frametitle{General assumptions}
+\vskip 0.25cm
+\begin{itemize}
+\item We want to use \commonlisp{} as much as possible.
+\item The resulting system should not be too slow, but we do not
+  need extremely good performance.
+\item No classes and no generic functions.  This assumption will be
+  revisited later.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Start with a small core in (say) C}
+\vskip 0.25cm
+\begin{itemize}
+\item Write a minimal subset in an existing language.
+\item Add more and more functionality, written in \commonlisp{}.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Core functionality}
+\vskip 0.25cm
+We need to figure out what initial functionality the core must have.
+\vskip 0.25cm
+\begin{itemize}
+\item A memory manager and garbage collector.
+\item A reader.  It must be possible to read additional \commonlisp{} code.
+\item An evaluator.  The additional \commonlisp{} code must be executed.
+\item A printer, i.e., the \texttt{print} function of \commonlisp{}.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Memory manager and garbage collector}
+\vskip 0.25cm
+A natural choice:
+\begin{itemize}
+\item Use C malloc() to allocate \commonlisp{} objects.
+\item Use the Boehm-Demers-Weiser conservative
+garbage collector to reclaim memory of dead objects.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Reader}
+\vskip 0.25cm
+The \commonlisp{} reader is a complicated module, and is best written
+in \commonlisp{}, but that's not a choice for the core.  Two options:
+\begin{itemize}
+\item Write a subset of the reader in C, capable of reading additional
+  source code.  Replace with a full reader written in \commonlisp{}
+  later.
+\item Write the final reader in C, but leave out complicated standard
+  reader macros that can be written in \commonlisp{} later.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Printer}
+\vskip 0.25cm
+Like the reader, the \commonlisp{} printer is a complicated module,
+and is best written in \commonlisp{}, but that's not a choice for the
+core.
+\vskip 0.25cm
+The same two options are possible.  We will not discuss the printer
+any further.
+}
+
+\frame{
+\frametitle{Strategy 1: Evaluator}
+\vskip 0.25cm
+Several possible implementations:
+\vskip 0.25cm
+\begin{itemize}
+\item A direct interpreter written in C.
+\item A compiler generating native machine code.
+\item A compiler generating byte codes, combined with a byte-code
+  interpreter written in C.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Direct interpreter}
+\vskip 0.25cm
+\begin{itemize}
+\item Relatively simple.
+\item Slow.
+\item ``Cross evaluation'' is not possible.
+  interpreter written in C.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Compiler generating native code}
+\vskip 0.25cm
+\begin{itemize}
+\item Hard to write.
+\item Requires knowledge of the C ABI.
+\item Makes tail-call optimization somewhat difficult.
+\end{itemize}
+}
+
+\frame{
+\frametitle{Strategy 1: Compiler generating byte codes}
+\vskip 0.25cm
+\begin{itemize}
+\item Relatively simple to write.
+\item Reasonably fast.
+\item Tail-call optimization is relatively easy.
+\end{itemize}
+This is our recommended choice, at least for the time being.
+}
+
+\frame[containsverbatim]{
+\frametitle{Strategy 1: Complications}
+\vskip 0.25cm
+\commonlisp{} does not have a unique set of basic operators.  There
+are many possible choices.
+\vskip 0.25cm
+The following link is to a page with a long list of possible choices:
+http://home.pipeline.com/~hbaker1/MetaCircular.html
+}
+
+\frame[containsverbatim]{
+\frametitle{Strategy 1: Complications}
+\vskip 0.25cm
+Perhaps we would like to implement \texttt{mapcar} in \commonlisp{}.
+Here is a reasonable-looking (simplified) implementation:
+\vskip 0.25cm
+\begin{verbatim}
+(defun mapcar (function list)
+  (do ((sublist list (rest sublist))
+       (result '()))
+      ((null sublist) (nreverse result))
+    (push (funcall function (first sublist))
+          result)))
+\end{verbatim}
+\vskip 0.25cm
+But for this implementation to work, the \texttt{do} macro must exist.
+\vskip 0.25cm
+And the macro expander for \texttt{do} may very well use
+\texttt{mapcar} to extract the local variables, here \texttt{sublist}
+and \texttt{result}.
+}
+
+\frame[containsverbatim]{
+\frametitle{Strategy 1: Complications}
+\vskip 0.25cm
+Possible solutions:
+\vskip 0.25cm
+\begin{itemize}
+\item Write \texttt{mapcar} in the implementation language of the
+  core (C), but this solution goes against our goals to use
+  \commonlisp{} as much as possible.
+\item Use a simpler iteration construct, hoping its expansion does not
+  require \texttt{mapcar}.
+\item Use \texttt{tagbody} and \texttt{go} to implement \texttt{mapcar}.
+\end{itemize}
+\vskip 0.25cm
+A similar decision has to be made for almost all non-trivial function
+to be implemented.
+\vskip 0.25cm
+Worse, during maintenance, these choices have to be known so as to
+avoid violations of the constraints.
+}
+
+\frame{
+\frametitle{Thank you}
+}
+
+\end{document}

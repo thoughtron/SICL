@@ -6,6 +6,6 @@
     (change-class e2 'environment)
     (set-up-environments boot)
     (enable-defgeneric e3)
-    (load-accessor-defgenerics e3)
+    (sicl-boot:load-accessor-defgenerics e3)
     (enable-defclass boot)
-    (load-mop-defclasses boot)))
+    (sicl-boot:create-mop-classes e2)))

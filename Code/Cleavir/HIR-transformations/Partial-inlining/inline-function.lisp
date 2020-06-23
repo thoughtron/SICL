@@ -1,80 +1,5 @@
 (cl:in-package #:cleavir-partial-inlining)
 
-;;; Cut and paste a function to inline - i.e. don't copy much of anything, which is nice,
-;;; but means the original is destroyed.
-(defun interpolate-function (call enter)
-  (let (;; We need to alter these. We find them before doing any alteration-
-        ;; interleaving modification and finds results in unfortunate effects.
-        (returns '())
-        (unwinds '())
-        (target-enter (instruction-owner call))
-        (old-dynenv (cleavir-ir:dynamic-environment enter))
-        (call-dynenv (cleavir-ir:dynamic-environment call)))
-    ;; Update the ownerships of each local instruction and datum and
-    ;; find the exit point instructions. Also update the dynamic
-    ;; environments of instructions whose dynamic environment is the
-    ;; same as the one established by ENTER.
-    (cleavir-ir:map-local-instructions
-     (lambda (instruction)
-       (setf (instruction-owner instruction) target-enter)
-       (when (eq (cleavir-ir:dynamic-environment instruction)
-                 old-dynenv)
-         (setf (cleavir-ir:dynamic-environment instruction)
-               call-dynenv))
-       (dolist (input (cleavir-ir:inputs instruction))
-         (when (eq (location-owner input) enter)
-           (setf (location-owner input) target-enter)))
-       (dolist (output (cleavir-ir:outputs instruction))
-         (when (eq (location-owner output) enter)
-           (setf (location-owner output) target-enter)))
-       (when (typep instruction 'cleavir-ir:return-instruction)
-         (push instruction returns))
-       (when (typep instruction 'cleavir-ir:unwind-instruction)
-         (push instruction unwinds))
-       (when (typep instruction 'cleavir-ir:funcall-instruction)
-         (push instruction *destinies-worklist*)))
-     enter)
-    ;; Make appropriate assignments to do the ENTER's task.
-    (loop with cleavir-ir:*policy* = (cleavir-ir:policy call)
-          with cleavir-ir:*dynamic-environment* = call-dynenv
-          for location in (cleavir-ir:parameters enter)
-          for arg in (rest (cleavir-ir:inputs call))
-          for assign = (cleavir-ir:make-assignment-instruction arg location) 
-          do (when (cleavir-ir:using-instructions location)
-               (let ((binding-assign (first (cleavir-ir:using-instructions location))))
-                 (change-class binding-assign 'binding-assignment-instruction)
-                 (push binding-assign *binding-assignments*)))
-             (cleavir-ir:insert-instruction-before assign call))
-    ;; Turn any unwinds in the body to the function being inlined into
-    ;; into direct control transfers.
-    (loop with target-enter = (instruction-owner call)
-          for unwind in unwinds
-          for destination = (cleavir-ir:destination unwind)
-          ;; Recapitulates local-catch-p in inline-one-instruction.lisp, a bit.
-          when (eq (instruction-owner destination) target-enter)
-            ;; it's local: replace it. (If not local, there is nothing to do.)
-            ;; (Similar to the unwind-instruction method on inline-one-instruction)
-            do (let* ((target (nth (cleavir-ir:unwind-index unwind)
-                                   (cleavir-ir:successors destination)))
-                      (nop (let ((cleavir-ir:*policy* (cleavir-ir:policy unwind))
-                                 (cleavir-ir:*dynamic-environment* (cleavir-ir:dynamic-environment unwind)))
-                             (cleavir-ir:make-nop-instruction (list target)))))
-                 (cleavir-ir:bypass-instruction nop unwind)))
-    ;; Fix up the return values, and replace return instructions with NOPs that go to after the call.
-    (loop with caller-values = (first (cleavir-ir:outputs call))
-          with next = (first (cleavir-ir:successors call))
-          for return in returns
-          for values = (first (cleavir-ir:inputs return))
-          do (cleavir-ir:replace-datum caller-values values)
-             (let ((nop (let ((cleavir-ir:*policy* (cleavir-ir:policy return))
-                              (cleavir-ir:*dynamic-environment* (cleavir-ir:dynamic-environment return)))
-                          (cleavir-ir:make-nop-instruction (list next)))))
-               (cleavir-ir:bypass-instruction nop return))))
-  ;; Replace the call with a regular control arc into the function.
-  (cleavir-ir:bypass-instruction (first (cleavir-ir:successors enter)) call)
-  ;; Done!
-  (values))
-
 ;;; Remvoe an enter instruction from the list of predecessors of its successors.
 (defun disconnect-predecessor (instruction)
   (dolist (successor (cleavir-ir:successors instruction))
@@ -95,7 +20,8 @@
          ;; that inlined instructions have the policy of the source function,
          ;; rather than the call.
          (call-arguments
-           (loop with cleavir-ir:*policy* = (cleavir-ir:policy call)
+           (loop with cleavir-ir:*origin* = (cleavir-ir:origin call)
+                 with cleavir-ir:*policy* = (cleavir-ir:policy call)
                  with cleavir-ir:*dynamic-environment*
                    = (cleavir-ir:dynamic-environment call)
                  for location in initial-environment
@@ -119,7 +45,8 @@
          (fake-dynenv (cleavir-ir:new-temporary))
          (new-enter (cleavir-ir:clone-instruction enter
                       :dynamic-environment fake-dynenv))
-         (enc (let ((cleavir-ir:*policy* (cleavir-ir:policy call))
+         (enc (let ((cleavir-ir:*origin* (cleavir-ir:origin call))
+                    (cleavir-ir:*policy* (cleavir-ir:policy call))
                     (cleavir-ir:*dynamic-environment* dynenv))
                 (cleavir-ir:make-enclose-instruction function-temp call new-enter))))
     ;; Map the old inner dynenv to the outer dynenv.

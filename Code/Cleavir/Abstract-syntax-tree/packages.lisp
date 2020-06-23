@@ -13,13 +13,9 @@
    #:one-value-ast-mixin
    #:side-effect-free-ast-mixin
    #:side-effect-free-p
-   #:*dynamic-environment* #:dynamic-environment
-   #:dynamic-environment-output-ast-mixin
-   #:dynamic-environment-out-ast
    #:immediate-ast #:make-immediate-ast #:value
    #:constant-ast #:make-constant-ast #:value
    #:lexical-ast #:make-lexical-ast
-   #:make-dynamic-environment-ast
    #:symbol-value-ast #:make-symbol-value-ast
    #:set-symbol-value-ast #:make-set-symbol-value-ast
    #:set-constant-symbol-value-ast #:make-set-constant-symbol-value-ast
@@ -28,12 +24,15 @@
    #:constant-fdefinition-ast #:make-constant-fdefinition-ast #:info
    #:constant-symbol-value-ast #:make-constant-symbol-value-ast #:info
    #:call-ast #:make-call-ast #:callee-ast #:argument-asts
+   #:inline-declaration
    #:block-ast #:make-block-ast #:body
    #:function-ast #:make-function-ast #:lambda-list
+   #:bound-declarations #:docstring #:original-lambda-list
    #:top-level-function-ast #:make-top-level-function-ast #:forms
    #:required-only-p #:required #:argparse-ast #:body-ast
    #:go-ast #:make-go-ast #:tag-ast
    #:if-ast #:make-if-ast #:test-ast #:then-ast #:else-ast
+   #:branch-ast #:make-branch-ast #:branch-asts #:default-ast
    #:multiple-value-call-ast #:make-multiple-value-call-ast
    #:function-form-ast
    #:values-ast #:make-values-ast
@@ -53,6 +52,7 @@
    #:typeq-ast #:make-typeq-ast #:type-specifier #:type-specifier-ast
    #:bind-ast #:make-bind-ast
    #:eq-ast #:make-eq-ast
+   #:case-ast #:make-case-ast #:comparees
    #:car-ast #:make-car-ast #:cons-ast
    #:cdr-ast #:make-cdr-ast
    #:rplaca-ast #:make-rplaca-ast #:object-ast
@@ -82,6 +82,8 @@
    #:subtype
    #:slot-read-ast #:make-slot-read-ast #:slot-number-ast #:object-ast
    #:slot-write-ast #:make-slot-write-ast
+   #:funcallable-slot-read-ast #:make-funcallable-slot-read-ast
+   #:funcallable-slot-write-ast #:make-funcallable-slot-write-ast
    #:aref-ast #:aset-ast
    #:element-ast #:array-ast #:index-ast
    #:element-type #:simple-p #:boxed-p

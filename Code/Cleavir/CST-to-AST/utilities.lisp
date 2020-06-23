@@ -9,6 +9,66 @@
   (funcall (coerce *macroexpand-hook* 'function)
            expander form env))
 
+;;; This variable is bound to a list of forms that will be
+;;; searched for in the CST so that a source position can
+;;; be found.
+;;; It's a dynamic variable because a macroexpander may
+;;; want to bind it; see WITH-CURRENT-SOURCE-FORM.
+(defvar *current-source-forms*)
+
+(defun find-source-cst-1 (cst form)
+  (let ((seen (make-hash-table :test #'eq)))
+    (labels ((aux (cst)
+               (unless (gethash cst seen)
+                 (setf (gethash cst seen) t)
+                 (when (eq (cst:raw cst) form)
+                   (return-from find-source-cst-1 cst))
+                 ;; We don't search through atoms.
+                 (when (typep cst 'cst:cons-cst)
+                   (aux (cst:first cst))
+                   (aux (cst:rest cst)))
+                 nil)))
+      (aux cst))))
+
+;;; Used in the encapsulators in conditions.lisp.
+(defun find-source-cst (cst
+                        &optional (forms *current-source-forms*))
+  (if (null forms)
+      cst
+      (or (find-source-cst-1 cst (first forms))
+          (find-source-cst cst (rest forms)))))
+
+;;; This is a helper operator to get more accurate errors from
+;;; macroexpansion functions. Cleavir wraps such errors in
+;;; other conditions that include the CST, which has source
+;;; information, using with-encapsulated-conditions. This
+;;; operator can be used to specify which CST should be
+;;; included in that encapsulation condition.
+;;; The "current CST" is initially bound to the whole macro form's
+;;; CST by Cleavir. In a with-current-source-form, it will be
+;;; rebound to the CST corresponding to the first of the FORMS
+;;; that can be located in the current CST, or to the current CST
+;;; again if none can be found. Then, when an error is signaled
+;;; and Cleavir encapsulates it, it uses the current CST.
+;;; This is useful for macros like COND and SETF. For example,
+;;; (with-current-source-form (place) (get-setf-expansion place))
+;;; means that if the place is malformed etc., the error location
+;;; is localized to the place, not the entire SETF form.
+;;; If WITH-CURRENT-SOURCE-FORM is executed in some context other
+;;; than a macroexpander in Cleavir, no special processing is done.
+(defmacro with-current-source-form ((&rest forms) &body body)
+  ;; This circuitious expansion is to ensure that code using this
+  ;; macro can be loaded even if the compiler has not been yet,
+  ;; for bootstrapping purposes or otherwise.
+  (let ((thunkg (gensym "THUNK")))
+    ;; progn to ensure DECLARE doesn't work
+    `(flet ((,thunkg () (progn ,@body)))
+       (if (boundp '*current-source-forms*)
+           (let ((*current-source-forms*
+                  (list* ,@forms *current-source-forms*)))
+             (,thunkg))
+           (,thunkg)))))
+
 (defun expand-macro (expander cst env)
   (with-encapsulated-conditions
       (cst macroexpansion-error

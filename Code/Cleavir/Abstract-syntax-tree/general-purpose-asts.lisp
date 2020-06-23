@@ -27,13 +27,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;; Variable *DYNAMIC-ENVIRONMENT*.
-;;; Default for :dynamic-environment initarg.
-
-(defvar *dynamic-environment*)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
 ;;; Class AST.  The base class for all AST classes.
 ;;;
 ;;; ORIGIN is a client-supplied object that is not interpreted by
@@ -44,16 +37,12 @@
 
 (defclass ast ()
   ((%origin :initform nil :initarg :origin :accessor origin)
-   (%policy :initform *policy* :initarg :policy :accessor policy)
-   (%dynamic-environment :initform *dynamic-environment*
-                         :initarg :dynamic-environment
-                         :accessor dynamic-environment)))
+   (%policy :initform *policy* :initarg :policy :accessor policy)))
 
 ;;; Policies must be saved
 (cleavir-io:define-save-info ast
   (:origin origin)
-  (:policy policy)
-  (:dynamic-environment dynamic-environment))
+  (:policy policy))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -62,6 +51,10 @@
 ;;; This class is used as a superclass for ASTs that produce Boolean
 ;;; results, so are mainly used as the TEST-AST of an IF-AST.
 (defclass boolean-ast-mixin () ())
+
+;;; This class is used as a superclass for ASTs that produce results
+;;; for BRANCH-AST.
+(defclass multiway-ast-mixin () ())
 
 ;;; This class is used as a superclass for ASTs that produce no value
 ;;; and that must be compiled in a context where no value is required.
@@ -74,17 +67,6 @@
 ;;; This class is used as a superclass for ASTs that have no side
 ;;; effect.
 (defclass side-effect-free-ast-mixin () ())
-
-;;; This class is used as a superclass for ASTs that output a dynamic
-;;; environment.
-(defclass dynamic-environment-output-ast-mixin ()
-  ((%dynenv-out :initarg :dynamic-environment-out
-                :accessor dynamic-environment-out-ast)))
-
-;;; FIXME: It would be nice if this could have a method
-;;; for CHILDREN as well.
-(cleavir-io:define-save-info dynamic-environment-output-ast-mixin
-  (:dynamic-environment-out dynamic-environment-out-ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -148,7 +130,7 @@
 ;;; The value of the constant is represented as a possibly-negative
 ;;; integer that is the machine-code representation of the constant.
 
-(defclass immediate-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass immediate-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%value :initarg :value :reader value)))
 
 (defun make-immediate-ast (value &key origin (policy *policy*))
@@ -176,7 +158,7 @@
 ;;; value here represents the value of that constant variable at
 ;;; compile time.
 
-(defclass constant-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass constant-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%value :initarg :value :reader value)))
 
 (defun make-constant-ast (value &key origin (policy *policy*))
@@ -199,24 +181,13 @@
 ;;; a reference contains the name of the variable, but it is used only
 ;;; for debugging purposes and for the purpose of error reporting.
 
-(defclass lexical-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass lexical-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%name :initarg :name :reader name)))
 
 (defun make-lexical-ast (name &key origin (policy *policy*))
   (make-instance 'lexical-ast
     :origin origin :policy policy
     :name name))
-
-;;; Occasionally useful helper.
-(defun make-dynamic-environment-ast (name &key origin (policy *policy*))
-  (let ((result
-          (make-instance 'lexical-ast
-            :origin origin :policy policy
-            :name name
-            ;; We temporarily put in NIL so that the initform will not be used.
-            :dynamic-environment nil)))
-    (setf (dynamic-environment result) result)
-    result))
 
 (cleavir-io:define-save-info lexical-ast
   (:name name))
@@ -231,7 +202,7 @@
 ;;;
 ;;; This AST is generated from a reference to a special variable.
 
-(defclass symbol-value-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass symbol-value-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%symbol-ast :initarg :symbol-ast :reader symbol-ast)))
 
 (defun make-symbol-value-ast (symbol-ast &key origin (policy *policy*))
@@ -249,7 +220,7 @@
 ;;;
 ;;; Class CONSTANT-SYMBOL-VALUE-AST.
 
-(defclass constant-symbol-value-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass constant-symbol-value-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%name :initarg :name :reader name)))
 
 (defun make-constant-symbol-value-ast (name &key origin (policy *policy*))
@@ -269,7 +240,7 @@
 ;;;
 ;;; This AST is generated from an assignment to a special variable.
 
-(defclass set-symbol-value-ast (ast no-value-ast-mixin)
+(defclass set-symbol-value-ast (no-value-ast-mixin ast)
   ((%symbol-ast :initarg :symbol-ast :reader symbol-ast)
    (%value-ast :initarg :value-ast :reader value-ast)))
 
@@ -290,7 +261,7 @@
 ;;;
 ;;; Class SET-CONSTANT-SYMBOL-VALUE-AST.
 
-(defclass set-constant-symbol-value-ast (ast no-value-ast-mixin)
+(defclass set-constant-symbol-value-ast (no-value-ast-mixin ast)
   ((%name :initarg :name :reader name)
    (%value-ast :initarg :value-ast :reader value-ast)))
 
@@ -313,7 +284,7 @@
 ;;;
 ;;; This AST is generated from a reference to a global function.
 
-(defclass fdefinition-ast (ast one-value-ast-mixin side-effect-free-ast-mixin)
+(defclass fdefinition-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   (;; This slot contains an AST that produces the function name.
    (%name-ast :initarg :name-ast :reader name-ast)))
 
@@ -336,7 +307,7 @@
 ;;; function, but migration to this AST is suggested.
 
 (defclass constant-fdefinition-ast
-    (ast one-value-ast-mixin side-effect-free-ast-mixin)
+    (one-value-ast-mixin side-effect-free-ast-mixin ast)
   (;; This slot contains the name of the function
    (%name :initarg :name :reader name)))
 
@@ -359,17 +330,20 @@
 
 (defclass call-ast (ast)
   ((%callee-ast :initarg :callee-ast :reader callee-ast)
-   (%argument-asts :initarg :argument-asts :reader argument-asts)))
+   (%argument-asts :initarg :argument-asts :reader argument-asts)
+   (%inline :initarg :inline :initform nil :reader inline-declaration)))
 
-(defun make-call-ast (callee-ast argument-asts &key origin (policy *policy*))
+(defun make-call-ast (callee-ast argument-asts &key origin inline (policy *policy*))
   (make-instance 'call-ast
     :origin origin :policy policy
     :callee-ast callee-ast
+    :inline inline
     :argument-asts argument-asts))
 
 (cleavir-io:define-save-info call-ast
   (:callee-ast callee-ast)
-  (:argument-asts argument-asts))
+  (:argument-asts argument-asts)
+  (:inline inline-declaration))
 
 (defmethod children ((ast call-ast))
   (list* (callee-ast ast) (argument-asts ast)))
@@ -416,25 +390,41 @@
 ;;; LEXICAL-ASTs of any of the ki because they may not be set
 ;;; correctly (conceptually, they all have the value FALSE then).
 
-(defclass function-ast (ast one-value-ast-mixin side-effect-free-ast-mixin
-                        dynamic-environment-output-ast-mixin)
+(defclass function-ast (one-value-ast-mixin side-effect-free-ast-mixin ast)
   ((%lambda-list :initarg :lambda-list :reader lambda-list)
-   (%body-ast :initarg :body-ast :reader body-ast)))
+   (%body-ast :initarg :body-ast :reader body-ast)
+   ;; An alist from lexical ASTs to lists of pertinent declaration specifiers.
+   ;; Since SPECIAL is otherwise handled, these are for optimization use only
+   ;; and may be discarded at will.
+   (%bound-declarations :initarg :bound-declarations :initform nil
+                        :reader bound-declarations)
+   ;; These three are intended for debugging/introspection.
+   (%name :initarg :name :initform nil :accessor name)
+   (%docstring :initarg :docstring :initform nil :reader docstring)
+   (%original-lambda-list :initarg :original-lambda-list :initform nil
+                          :reader original-lambda-list)))
 
-(defun make-function-ast (body-ast lambda-list dynenv-out &key origin (policy *policy*))
+(defun make-function-ast (body-ast lambda-list
+                          &key name docstring original-lambda-list
+                            bound-declarations
+                            origin (policy *policy*))
   (make-instance 'function-ast
     :origin origin :policy policy
+    :name name :docstring docstring
+    :original-lambda-list original-lambda-list
+    :bound-declarations bound-declarations
     :body-ast body-ast
-    :dynamic-environment-out dynenv-out
     :lambda-list lambda-list))
 
 (cleavir-io:define-save-info function-ast
   (:lambda-list lambda-list)
-  (:body-ast body-ast))
+  (:body-ast body-ast)
+  (:name name) (:docstring docstring)
+  (:bound-declarations bound-declarations)
+  (:original-lambda-list original-lambda-list))
 
 (defmethod children ((ast function-ast))
   (list* (body-ast ast)
-         (dynamic-environment-out-ast ast)
          (loop for entry in (lambda-list ast)
                append (cond ((symbolp entry)
                              '())
@@ -462,14 +452,13 @@
 (defclass top-level-function-ast (function-ast)
   ((%forms :initarg :forms :reader forms)))
 
-(defun make-top-level-function-ast (body-ast lambda-list forms dynenv-out
+(defun make-top-level-function-ast (body-ast lambda-list forms
                                     &key origin (policy *policy*))
   (make-instance 'top-level-function-ast
     :origin origin :policy policy
     :body-ast body-ast
     :lambda-list lambda-list
-    :forms forms
-    :dynamic-environment-out dynenv-out))
+    :forms forms))
 
 (cleavir-io:define-save-info top-level-function-ast
   (:forms forms))
@@ -496,20 +485,19 @@
 ;;;
 ;;; Class BLOCK-AST.
 
-(defclass block-ast (ast dynamic-environment-output-ast-mixin)
+(defclass block-ast (ast)
   ((%body-ast :initarg :body-ast :accessor body-ast)))
 
-(defun make-block-ast (body-ast dynenv-out &key origin (policy *policy*))
+(defun make-block-ast (body-ast &key origin (policy *policy*))
   (make-instance 'block-ast
     :origin origin :policy policy
-    :dynamic-environment-out dynenv-out
     :body-ast body-ast))
   
 (cleavir-io:define-save-info block-ast
   (:body-ast body-ast))
 
 (defmethod children ((ast block-ast))
-  (list (dynamic-environment-out-ast ast) (body-ast ast)))
+  (list (body-ast ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -539,7 +527,7 @@
 ;;; This AST does not correspond exactly to the SETQ special operator,
 ;;; because the AST does not return a value.
 
-(defclass setq-ast (ast no-value-ast-mixin)
+(defclass setq-ast (no-value-ast-mixin ast)
   ((%lhs-ast :initarg :lhs-ast :reader lhs-ast)
    (%value-ast :initarg :value-ast :reader value-ast)))
 
@@ -616,20 +604,19 @@
 ;;;
 ;;; Class TAGBODY-AST.
 
-(defclass tagbody-ast (ast no-value-ast-mixin dynamic-environment-output-ast-mixin)
+(defclass tagbody-ast (no-value-ast-mixin ast)
   ((%item-asts :initarg :item-asts :reader item-asts)))
 
-(defun make-tagbody-ast (item-asts dynenv-out &key origin (policy *policy*))
+(defun make-tagbody-ast (item-asts &key origin (policy *policy*))
   (make-instance 'tagbody-ast
     :origin origin :policy policy
-    :dynamic-environment-out dynenv-out
     :item-asts item-asts))
 
 (cleavir-io:define-save-info tagbody-ast
   (:item-asts item-asts))
 
 (defmethod children ((ast tagbody-ast))
-  (list* (dynamic-environment-out-ast ast) (item-asts ast)))
+  (item-asts ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -646,8 +633,7 @@
 (cleavir-io:define-save-info go-ast
   (:tag-ast tag-ast))
 
-(defmethod children ((ast go-ast))
-  (list (tag-ast ast)))
+(defmethod children ((ast go-ast)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -723,7 +709,7 @@
 ;;; TYPE-SPECIFIER-AST slot with NIL and we compute the real value of
 ;;; it only when it is requested.
 
-(defclass typeq-ast (ast boolean-ast-mixin)
+(defclass typeq-ast (boolean-ast-mixin ast)
   (;; This slot contains the type specifier as an S-expression.  When
    ;; this AST is compiled to HIR, the contents of this slot will be
    ;; transmitted to the TYPEQ-INSTRUCTION so that it can be used by
@@ -740,12 +726,11 @@
    (%form-ast :initarg :form-ast :reader form-ast)))
 
 (defmethod type-specifier-ast :around ((ast typeq-ast))
-  (let ((value (call-next-method))
-        (*dynamic-environment*
-          (dynamic-environment ast)))
+  (let ((value (call-next-method)))
     (when (null value)
       (setq value (make-load-time-value-ast
 		   `',(type-specifier ast) t
+                   :origin (cleavir-ast:origin ast)
 		   :policy (cleavir-ast:policy ast)))
       (reinitialize-instance
        ast
@@ -776,7 +761,7 @@
 ;;; because it can only be a Boolean which is not evaluated, so we
 ;;; know at AST creation time whether it is true or false. 
 
-(defclass load-time-value-ast (ast one-value-ast-mixin)
+(defclass load-time-value-ast (one-value-ast-mixin ast)
   ((%form :initarg :form :reader form)
    (%read-only-p :initarg :read-only-p :reader read-only-p)))
 
@@ -822,6 +807,37 @@
 
 (defmethod children ((ast if-ast))
   (list (test-ast ast) (then-ast ast) (else-ast ast)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Class BRANCH-AST.
+;;;
+;;; This class is a generalization of IF-AST. Based on the TEST-AST,
+;;; one of the zero or more BRANCH-ASTs, or else the DEFAULT-AST,
+;;; will be evaluated and its values returned.
+;;;
+;;; This AST can be used for example in the implementation of fast
+;;; CASE or TYPECASE operations.
+
+(defclass branch-ast (ast)
+  ((%test-ast :initarg :test-ast :reader test-ast)
+   (%branch-asts :initarg :branch-asts :reader branch-asts)
+   (%default-ast :initarg :default-ast :reader default-ast)))
+
+(defun make-branch-ast (test-ast branch-asts default-ast
+                        &key origin (policy *policy*))
+  (make-instance 'branch-ast
+    :origin origin :policy policy
+    :test-ast test-ast
+    :branch-asts branch-asts :default-ast default-ast))
+
+(cleavir-io:define-save-info branch-ast
+  (:test-ast test-ast)
+  (:branch-asts branch-asts)
+  (:default-ast default-ast))
+
+(defmethod children ((ast branch-ast))
+  (list* (test-ast ast) (default-ast ast) (branch-asts ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -901,7 +917,7 @@
 ;;; Note that this loses information from DYNAMIC-EXTENT, which
 ;;; does not allow escape from the form with the declaration.
 
-(defclass dynamic-allocation-ast (ast one-value-ast-mixin)
+(defclass dynamic-allocation-ast (one-value-ast-mixin ast)
   ((%form-ast :initarg :form-ast :reader form-ast)))
 
 (defun make-dynamic-allocation-ast (form-ast &key origin (policy *policy*))
@@ -967,7 +983,7 @@
 ;;; It has two children.  This AST can only appear in the TEST
 ;;; position of an IF-AST.
 
-(defclass eq-ast (ast boolean-ast-mixin)
+(defclass eq-ast (boolean-ast-mixin ast)
   ((%arg1-ast :initarg :arg1-ast :reader arg1-ast)
    (%arg2-ast :initarg :arg2-ast :reader arg2-ast)))
 
@@ -984,3 +1000,31 @@
 (defmethod children ((ast eq-ast))
   (list (arg1-ast ast) (arg2-ast ast)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; Class CASE-AST.
+;;;
+;;; This AST can be used to select an execution path by
+;;; comparing a given object against a fixed set of immediates.
+;;; COMPAREES is a sequence of sequences of objects.
+;;; If the primary value returned by the ARG-AST is EQ to one of
+;;; the objects in the nth sequence, the nth branch is taken;
+;;; if the value doesn't match any immediate the default branch
+;;; is taken instead.
+;;; This AST can only appear in the TEST position of a BRANCH-AST.
+
+(defclass case-ast (multiway-ast-mixin ast)
+  ((%arg-ast :initarg :arg-ast :reader arg-ast)
+   (%comparees :initarg :comparees :reader comparees)))
+
+(defun make-case-ast (arg-ast comparees &key origin (policy *policy*))
+  (make-instance 'case-ast
+    :origin origin :policy policy
+    :arg-ast arg-ast :comparees comparees))
+
+(cleavir-io:define-save-info case-ast
+  (:arg-ast arg-ast)
+  (:comparees comparees))
+
+(defmethod children ((ast case-ast))
+  (list (arg-ast ast)))

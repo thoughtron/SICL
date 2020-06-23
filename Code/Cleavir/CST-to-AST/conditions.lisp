@@ -125,6 +125,16 @@
     (compilation-program-error)
   ())
 
+;;; This condition is signaled when a case in CLEAVIR-PRIMOP:CASE is
+;;; not a proper list.
+(define-condition case-must-be-proper-list
+    (compilation-program-error)
+  ())
+
+(define-condition case-keys-must-be-proper-list
+    (compilation-program-error)
+  ())
+
 ;;; This condition is signaled when the first argument to EVAL-WHEN
 ;;; contains an invalid situation.
 (define-condition invalid-eval-when-situation
@@ -285,6 +295,11 @@
 (define-condition malformed-lambda-list (compilation-program-error)
   ())
 
+;;; This condition is isgnaled when a CLEAVIR-PRIMOP:CASE form
+;;; lacks a default case.
+(define-condition default-case-missing (compilation-program-error)
+  ())
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Encapsulation conditions.
@@ -301,7 +316,7 @@
     (let ((muffle t))
       (restart-case
           (warn condition-type
-                :cst cst
+                :cst (find-source-cst cst)
                 :condition condition)
         (signal-original-condition ()
           :report "Let the originally signaled condition propagate."
@@ -313,7 +328,7 @@
   (lambda (condition)
     (restart-case
         (error condition-type
-               :cst cst
+               :cst (find-source-cst cst)
                :condition condition)
       (signal-original-condition ()
         :report "Let the originally signaled condition propagate."))))
@@ -322,15 +337,14 @@
 ;;; caught conditions in the given classes.
 (defmacro with-encapsulated-conditions
     ((cst error-type warning-type style-warning-type) &body body)
-  (let ((cstg (gensym "CST")))
-    `(let ((,cstg ,cst))
-       (handler-bind
-           ((style-warning
-              (warning-encapsulator ,cstg ',style-warning-type))
-            ((and warning (not style-warning))
-              (warning-encapsulator ,cstg ',warning-type))
-            (error (error-encapsulator ,cstg ',error-type)))
-         ,@body))))
+  `(let ((*current-source-forms* nil))
+     (handler-bind
+         ((style-warning
+            (warning-encapsulator ,cst ',style-warning-type))
+          ((and warning (not style-warning))
+            (warning-encapsulator ,cst ',warning-type))
+          (error (error-encapsulator ,cst ',error-type)))
+       ,@body)))
 
 ;;; This condition is signaled when a macroexpander signals
 ;;; an error.

@@ -47,13 +47,13 @@
    #:constant-fdefinition-instruction #:make-constant-fdefinition-instruction
    #:constant-symbol-value-instruction #:make-constant-symbol-value-instruction
    #:enter-instruction #:make-enter-instruction
-   #:lambda-list #:closure-size
+   #:lambda-list #:bound-declarations #:closure-size #:docstring #:original-lambda-list
    #:static-environment #:dynamic-environment-output #:parameters
    #:top-level-enter-instruction #:make-top-level-enter-instruction #:forms
    #:nop-instruction #:make-nop-instruction
    #:unreachable-instruction #:make-unreachable-instruction
    #:assignment-instruction #:make-assignment-instruction
-   #:funcall-instruction #:make-funcall-instruction
+   #:funcall-instruction #:make-funcall-instruction #:inline-declaration
    #:funcall-no-return-instruction #:make-funcall-no-return-instruction
    #:tailcall-instruction #:make-tailcall-instruction
    #:return-instruction #:make-return-instruction
@@ -66,7 +66,9 @@
    #:required-types #:optional-types #:rest-type
    #:catch-instruction #:make-catch-instruction
    #:unwind-instruction #:make-unwind-instruction #:destination #:unwind-index
+   #:local-unwind-instruction #:make-local-unwind-instruction
    #:eq-instruction #:make-eq-instruction
+   #:case-instruction #:make-case-instruction #:comparees
    #:consp-instruction #:make-consp-instruction
    #:fixnump-instruction #:make-fixnump-instruction
    #:characterp-instruction #:make-characterp-instruction
@@ -97,6 +99,8 @@
    #:rplacd-instruction #:make-rplacd-instruction
    #:slot-read-instruction #:make-slot-read-instruction
    #:slot-write-instruction #:make-slot-write-instruction
+   #:funcallable-slot-read-instruction #:make-funcallable-slot-read-instruction
+   #:funcallable-slot-write-instruction #:make-funcallable-slot-write-instruction
    #:memref1-instruction #:make-memref1-instruction
    #:memref2-instruction #:make-memref2-instruction
    #:memset1-instruction #:make-memset1-instruction

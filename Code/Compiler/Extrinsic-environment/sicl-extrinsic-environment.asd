@@ -81,13 +81,13 @@
   :depends-on (:concrete-syntax-tree
                :trivial-gray-streams
                :sicl-simple-environment
-               :sicl-environment
                :sicl-loop-support
                :sicl-arithmetic
                :sicl-cons-support
                :sicl-clos-support
                :sicl-type-support
                :sicl-conditions
+               :sicl-environment-support
                :closer-mop
                :cleavir2-cst-to-ast
                :cleavir2-ast-transformations

@@ -120,7 +120,7 @@
 (defun eql-ify (keys variable)
   (if (null keys)
       '()
-      (cons `(eql ,variable ,(car keys))
+      (cons `(eql ,variable ',(car keys))
             (eql-ify (cdr keys) variable))))
 
 ;;; Collect a list of all the keys for ecase or ccase
@@ -170,7 +170,7 @@
                       (forms (cdr clause)))
                   (if (and (atom keys)
                            (not (null keys)))
-                      `(if (eql ,variable ,keys)
+                      `(if (eql ,variable ',keys)
                            (progn ,@forms)
                            ,(expand-case-clauses (cdr clauses) variable))
                       (if (not (cleavir-code-utilities:proper-list-p keys))
@@ -243,7 +243,7 @@
 ;;; even though the HyperSpec allows such multiple evaluation.
 (defun ccase-expander (keyplace clauses env)
   (multiple-value-bind (vars vals store-vars writer-forms reader-forms)
-      (let ((global-environment (cleavir-env:global-environment env)))
+      (let ((global-environment (sicl-genv:global-environment env)))
         (sicl-genv:get-setf-expansion keyplace global-environment))
     (let* ((label (gensym))
            (keys (collect-e/ccase-keys clauses 'ccase))
@@ -352,7 +352,7 @@
 ;;; STORE-VALUE restart.
 (defun ctypecase-expander (keyplace clauses env)
   (multiple-value-bind (vars vals store-vars writer-forms reader-forms)
-      (let ((global-environment (cleavir-env:global-environment env)))
+      (let ((global-environment (sicl-genv:global-environment env)))
         (sicl-genv:get-setf-expansion keyplace global-environment))
     (let* ((label (gensym))
            (keys (collect-e/ctypecase-keys clauses))

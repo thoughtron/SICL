@@ -1,5 +1,7 @@
 (cl:in-package #:sicl-mir-to-lir)
 
+;;; FIXME: check this translation!!!!
+
 (defmethod process-instruction
     ((instruction cleavir-ir:fixnum-divide-instruction) lexical-locations)
   (let ((inputs (cleavir-ir:inputs instruction))
@@ -14,7 +16,6 @@
             instruction
             (first inputs)
             *rax*
-            *r11*
             lexical-locations))
           ((eq (first inputs) *rax*)
            nil)
@@ -24,20 +25,26 @@
               :input (first inputs)
               :output *rax*)
             instruction)))
-    (when (lexical-p (second inputs))
-      (insert-memref-before
-       instruction
-       (second inputs)
-       *rcx*
-       *r11*
-       lexical-locations)
-      (setf (second inputs) *rcx*))
+    (cond ((lexical-p (second inputs))
+           (insert-memref-before
+            instruction
+            (second inputs)
+            *rcx*
+            lexical-locations)
+           (setf (second inputs) *rcx*))
+          ((typep (second inputs) 'cleavir-ir:immediate-input)
+           (cleavir-ir:insert-instruction-before
+            (make-instance 'cleavir-ir:assignment-instruction
+              :input (second inputs)
+              :output *r11*)
+            instruction)
+           (setf (second inputs) *r11*))
+          (t nil))
     (cond ((lexical-p (first outputs))
            (insert-memset-after
             instruction
             *rax*
             (first outputs)
-            *r11*
             lexical-locations))
           ((eq (first inputs) *rax*)
            nil)
@@ -52,7 +59,6 @@
             instruction
             *rdx*
             (second outputs)
-            *r11*
             lexical-locations))
           ((eq (second outputs) *rdx*)
            nil)

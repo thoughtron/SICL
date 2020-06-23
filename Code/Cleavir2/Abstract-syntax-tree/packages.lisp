@@ -49,20 +49,25 @@
    #:protected-form-ast
    #:cleanup-thunk-ast
    #:eq-ast
+   #:consp-ast
    #:car-ast #:cons-ast
    #:cdr-ast
    #:rplaca-ast #:object-ast
    #:rplacd-ast
    #:coerce-ast #:from-type #:to-type #:arg-ast
    #:variable-ast #:operation-ast #:normal-ast #:overflow-ast
+   #:fixnump-ast
    #:fixnum-add-ast
    #:fixnum-sub-ast
    #:arg1-ast #:arg2-ast #:variable-ast
+   #:fixnum-divide-ast #:dividend-ast #:divisor-ast
    #:fixnum-less-ast
    #:fixnum-not-greater-ast
    #:fixnum-greater-ast
    #:fixnum-not-less-ast
    #:fixnum-equal-ast
+   #:characterp-ast
+   #:single-float-p-ast
    #:float-add-ast
    #:float-sub-ast
    #:float-mul-ast
@@ -76,6 +81,7 @@
    #:float-cos-ast
    #:float-sqrt-ast
    #:subtype
+   #:standard-object-p-ast
    #:nook-read-ast #:nook-number-ast
    #:nook-write-ast
    #:aref-ast #:aset-ast

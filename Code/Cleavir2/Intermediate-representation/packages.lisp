@@ -64,6 +64,8 @@
    #:consp-instruction
    #:fixnump-instruction
    #:characterp-instruction
+   #:short-float-p-instruction
+   #:single-float-p-instruction
    #:standard-object-p-instruction
    #:phi-instruction
    #:use-instruction
@@ -75,7 +77,7 @@
    #:fixnum-less-instruction
    #:fixnum-not-greater-instruction
    #:fixnum-equal-instruction
-   #:fixnum-divide-instruction #:rounding-mode
+   #:fixnum-divide-instruction
    #:float-add-instruction
    #:float-sub-instruction
    #:float-mul-instruction
@@ -139,6 +141,7 @@
    #:unsigned-div-instruction
    #:unsigned-less-instruction
    #:unsigned-not-greater-instruction
+   #:negate-instruction
    #:equal-instruction
    #:shift-left-instruction
    #:logic-shift-right-instruction
